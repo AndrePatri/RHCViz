@@ -1,0 +1,11 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "rhcviz"
+version = "1.0.0"
+description = ""
+authors = [{name = "AndrePatri", email = "andreapatrizi1b6e6@gmail.com"}]
+readme = "README.md"
+license = {file = "LICENSE"}

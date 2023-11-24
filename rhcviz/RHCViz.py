@@ -25,7 +25,7 @@ class RHCViz:
             basename: str = "RHCViz", 
             rate: float = 100,
             cpu_cores: list = None):
-
+        
         self.syspaths = PathsGetter()
 
         self.namespace = namespace
@@ -38,16 +38,15 @@ class RHCViz:
         self.rate = rate
 
         self.nodes_ns = []
-        self.nodes_robot_descriptions = []
+        self.robot_description_name = f'{self.basename}_{self.namespace}/robot_description' # one robot
+        # description for all
         self.nodes_tf_prefixes = []
         for i in range(0, n_robots):
             
             self.nodes_ns.append(f'{self.basename}_{self.namespace}_node_{i}')
-            self.nodes_robot_descriptions.append(f'{self.nodes_ns[i]}/robot_description')
             self.nodes_tf_prefixes.append(f'{self.nodes_ns[i]}')
 
         self.state_ns = f'{self.basename}_{self.namespace}_state'
-        self.state_robot_description = f'{self.state_ns}/robot_description'
         self.state_tf_prefix = self.state_ns
 
         self.urdf_file_path = urdf_file_path
@@ -88,7 +87,7 @@ class RHCViz:
                 'Class': 'rviz/RobotModel',
                 'Name': 'RHCNode{}'.format(i),
                 'Enabled': True,
-                'Robot Description': f'{self.nodes_robot_descriptions[i]}',
+                'Robot Description': f'{self.robot_description_name}',
                 'TF Prefix': f'{self.nodes_tf_prefixes[i]}'
             }
             config['Visualization Manager']['Displays'].append(rhcnode_config)
@@ -99,7 +98,7 @@ class RHCViz:
             'Class': 'rviz/RobotModel',
             'Name': 'RobotState',
             'Enabled': True,
-            'Robot Description': f'{self.state_robot_description}',
+            'Robot Description': f'{self.robot_description_name}',
             'TF Prefix': f'{self.state_tf_prefix}'
         }
         config['Visualization Manager']['Displays'].append(robotstate_config)
@@ -138,8 +137,8 @@ class RHCViz:
         """
 
         # Set the robot description for each namespace
-        # full_param_name = '/{}/robot_description'.format(robot_ns)
-        # rospy.set_param(full_param_name, urdf)
+        full_param_name = '/{}/robot_description'.format(robot_ns)
+        rospy.set_param(full_param_name, urdf)
 
         taskset_command = self.get_taskset_command()
         rsp_command = [
@@ -208,6 +207,9 @@ class RHCViz:
         rospy.init_node('RHCViz', anonymous=True)
 
         robot_description = self.read_urdf_file(self.urdf_file_path)
+        # Set the robot description for each namespace
+        rospy.set_param(self.robot_description_name, robot_description)
+
         joint_names, _ = self.get_joint_info(URDF.from_xml_string(robot_description))
 
         # Launch RViz in a separate process

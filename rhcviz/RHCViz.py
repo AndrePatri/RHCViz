@@ -13,6 +13,8 @@ import tempfile
 
 from rhcviz.utils.sys_utils import PathsGetter
 
+# import time
+
 class RHCViz:
 
     def __init__(self, 
@@ -20,14 +22,20 @@ class RHCViz:
             n_robots, 
             rviz_config_path=None, 
             namespace: str = "", 
-            basename: str = "RHCViz"):
+            basename: str = "RHCViz", 
+            rate: float = 100,
+            cpu_cores: list = None):
 
         self.syspaths = PathsGetter()
 
         self.namespace = namespace
         self.basename = basename
 
+        self.cpu_cores = cpu_cores
+
         self.baselink_name = "base_link"
+
+        self.rate = rate
 
         self.nodes_ns = []
         self.nodes_robot_descriptions = []
@@ -47,6 +55,16 @@ class RHCViz:
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
+
+    def get_taskset_command(self):
+        """
+        Generate the taskset command based on the specified CPU cores.
+        """
+        if self.cpu_cores:
+            core_string = ','.join(map(str, self.cpu_cores))
+            return ['taskset', '-c', core_string]
+        else:
+            return []
 
     def rviz_config_path_default(self):
 
@@ -116,19 +134,21 @@ class RHCViz:
 
     def start_robot_state_publisher(self, urdf, robot_ns):
         """
-        Start a robot_state_publisher for a robot namespace.
+        Start a robot_state_publisher for a robot namespace with specified CPU affinity.
         """
-        # Set the robot description for each namespace
-        full_param_name = '/{}/robot_description'.format(robot_ns)
-        rospy.set_param(full_param_name, urdf)
 
-        # Launch the robot_state_publisher for each robot
+        # Set the robot description for each namespace
+        # full_param_name = '/{}/robot_description'.format(robot_ns)
+        # rospy.set_param(full_param_name, urdf)
+
+        taskset_command = self.get_taskset_command()
         rsp_command = [
             'rosrun', 'robot_state_publisher', 'robot_state_publisher',
             '__ns:=' + robot_ns,
             '_tf_prefix:=' + robot_ns
         ]
-        rsp_process = subprocess.Popen(rsp_command)
+        full_command = taskset_command + rsp_command
+        rsp_process = subprocess.Popen(full_command)
         return rsp_process
 
     def publish_static_tf_rhc_nodes(self, 
@@ -174,12 +194,14 @@ class RHCViz:
         static_broadcaster.sendTransform(static_transform_stamped)
 
     def launch_rviz(self):
-        # Update the RViz configuration
+        """
+        Launch RViz with specified CPU affinity.
+        """
         updated_config_path = self.update_rviz_config()
-
-        # Launch RViz with the updated configuration
+        taskset_command = self.get_taskset_command()
         rviz_command = ['rviz', '-d', updated_config_path]
-        return subprocess.Popen(rviz_command)
+        full_command = taskset_command + rviz_command
+        return subprocess.Popen(full_command)
         
     def run(self):
 
@@ -213,8 +235,10 @@ class RHCViz:
         # Give time for the robot_state_publishers to start
         rospy.sleep(2)
 
-        rate = rospy.Rate(10)  # 10 Hz
+        rate = rospy.Rate(self.rate) 
         while not rospy.is_shutdown():
+            
+            # loop_start_time = time.time()  # Start time of the loop
 
             # publish RHC nodes states
             for i in range(self.n_robots):
@@ -242,10 +266,17 @@ class RHCViz:
             
             rate.sleep()
 
+            # loop_end_time = time.time()  # End time of the loop
+            # loop_duration = loop_end_time - loop_start_time
+            # expected_duration = 1.0 / self.rate
+            # if loop_duration > expected_duration:
+            #     rospy.logwarn(f"Loop overran desired rate: Duration {loop_duration:.4f}s > Expected {expected_duration:.4f}s")
+
+        rviz_process.terminate()
+
         # Cleanup robot_state_publisher processes
         for rsp_process in rsp_processes:
             rsp_process.terminate()
-        rviz_process.terminate()
 
 if __name__ == '__main__':
 

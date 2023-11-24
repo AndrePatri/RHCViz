@@ -15,6 +15,8 @@ if __name__ == '__main__':
            n_robots=args.n_robots, 
            rviz_config_path=args.rviz_config,
            namespace="", 
-           basename="RHCViz_test")
+           basename="RHCViz_test", 
+           rate = 100, # [Hz]
+           cpu_cores = [13, 14, 15])
     
     rhcviz.run()

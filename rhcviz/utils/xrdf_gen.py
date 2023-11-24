@@ -52,8 +52,6 @@ class UrdfGenerator:
         try:
 
             xacro_gen = subprocess.check_call(xacro_cmd)
-            
-            # we also generate an updated SRDF (used by controllers)
 
         except:
 

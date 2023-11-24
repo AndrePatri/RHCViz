@@ -236,7 +236,7 @@ class RHCViz:
 
         # Give time for the robot_state_publishers to start
         rospy.sleep(2)
-
+    
         rate = rospy.Rate(self.rate) 
         while not rospy.is_shutdown():
             

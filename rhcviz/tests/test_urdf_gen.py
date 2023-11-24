@@ -1,4 +1,4 @@
-from rhcviz.tests.centauro_urdf_gen import CentauroUrdfGen
+from rhcviz.tests.urdf_gen_examples import CentauroUrdfGen
 
 
 if __name__ == '__main__':

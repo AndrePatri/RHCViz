@@ -1,10 +1,10 @@
 from rhcviz.utils.xrdf_gen import UrdfGenerator
 
-class CentauroUrdfGen(UrdfGenerator):
+class RoboUrdfGen(UrdfGenerator):
 
     def __init__(self, 
             robotname: str,
-            name: str = "CentauroUrdf"):
+            name: str = "RobotUrdf"):
         
         super().__init__(
             robotname = robotname,
@@ -18,8 +18,19 @@ class CentauroUrdfGen(UrdfGenerator):
 
         cmds = {} 
 
-        cmds.update(self._get_xrdf_cmds_centauro())
+        if self.robotname == "centauro":
 
+            cmds.update(self._get_xrdf_cmds_centauro())
+
+        if self.robotname == "aliengo":
+
+            cmds.update(self._get_xrdf_cmds_aliengo())
+
+        if self.robotname != "aliengo" and \
+            self.robotname != "centauro":
+
+            raise Exception("Unsupported robot type provided.")
+        
         return cmds
     
     def _get_xrdf_cmds_centauro(self):
@@ -46,3 +57,15 @@ class CentauroUrdfGen(UrdfGenerator):
         cmds["centauro"] = cmds_aux
 
         return cmds
+    
+    def _get_xrdf_cmds_aliengo(self):
+        
+        # no particular configuration needed
+        
+        cmds = {}
+        cmds_aux = []
+        
+        cmds["aliengo"] = cmds_aux
+
+        return cmds
+        

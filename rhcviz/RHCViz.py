@@ -13,6 +13,10 @@ import tempfile
 
 from rhcviz.utils.sys_utils import PathsGetter
 
+from std_msgs.msg import Float64MultiArray
+
+import numpy as np
+
 # import time
 
 class RHCViz:
@@ -124,6 +128,65 @@ class RHCViz:
 
         return joint_names, state_dimensions
 
+    def initialize_subscriber(self):
+        """
+        Initialize the subscriber to listen to the joint and pose data.
+        """
+        robot_name = "aliengo"  # Replace with actual robot name
+        topic_name = f"/{robot_name}_q"
+        self.subscriber = rospy.Subscriber(topic_name, 
+            Float64MultiArray, 
+            self.pose_and_joint_callback)
+
+    def pose_and_joint_callback(self, data):
+        """
+        Callback function for processing incoming pose and joint data.
+        """
+        # Convert data to numpy array and reshape
+        matrix = np.array(data.data).reshape((-1, self.n_robots))
+        n_rows, n_cols = matrix.shape
+
+        # Check if number of joints match
+        expected_joints = len(self.joint_names)
+        if (n_rows - 7) != expected_joints:
+            rospy.logerr("Number of joints in the message does not match the robot model.")
+            return
+
+        for i in range(self.n_robots):
+            # Extract base pose and joint positions for node i
+            base_pose = matrix[0:7, i]  # First 7 elements (position + quaternion)
+            joint_positions = matrix[7:, i]  # Rest are joint positions
+
+            # Publish base pose and joint positions for this node
+            self.publish_base_pose_and_joints(i, base_pose, joint_positions)
+        
+    def publish_base_pose_and_joints(self, node_index, base_pose, joint_positions):
+        """
+        Publish base pose and joint positions for a specific node.
+        """
+        # Publish base pose
+        transform = TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = 'world'
+        transform.child_frame_id = f'{self.nodes_tf_prefixes[node_index]}/{self.baselink_name}'
+        transform.transform.translation.x = base_pose[0]
+        transform.transform.translation.y = base_pose[1]
+        transform.transform.translation.z = base_pose[2]
+        transform.transform.rotation.x = base_pose[3]
+        transform.transform.rotation.y = base_pose[4]
+        transform.transform.rotation.z = base_pose[5]
+        transform.transform.rotation.w = base_pose[6]
+
+        self.tf_broadcaster.sendTransform(transform)
+
+        # Publish joint positions
+        joint_state = JointState()
+        joint_state.header.stamp = rospy.Time.now()
+        joint_state.name = self.joint_names
+        joint_state.position = joint_positions
+
+        self.publishers[self.nodes_ns[node_index]].publish(joint_state)
+
     def generate_random_joint_positions(self, joint_names):
         """
         Generate random joint positions. Here we assume each joint can move between -pi and pi.
@@ -228,11 +291,14 @@ class RHCViz:
         # self.publish_static_transforms_for_robots(self.n_robots)
 
         # Publishers for RHC nodes
-        publishers = {}
-        for i in range(self.n_robots):
-            publishers[self.nodes_ns[i]] = rospy.Publisher('/{}/joint_states'.format(self.nodes_ns[i]), JointState, queue_size=10)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.publishers = {}
+        for ns in self.nodes_ns:
+            self.publishers[ns] = rospy.Publisher(f'/{ns}/joint_states', JointState, queue_size=10)
         # Pubilisher for robot state
-        publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
+        self.publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
+
+        self.initialize_subscriber()
 
         # Give time for the robot_state_publishers to start
         rospy.sleep(2)
@@ -240,24 +306,8 @@ class RHCViz:
         rate = rospy.Rate(self.rate) 
         while not rospy.is_shutdown():
             
-            # loop_start_time = time.time()  # Start time of the loop
-
-            # publish RHC nodes states
-            for i in range(self.n_robots):
-
-                # random joint state
-                publishers[self.nodes_ns[i]].publish(JointState(
-                    header=rospy.Header(stamp=rospy.Time.now()),
-                    name=joint_names,
-                    position=self.generate_random_joint_positions(joint_names),
-                    velocity=[0]*len(joint_names),
-                    effort=[0]*len(joint_names)
-                ))
-                # constant pose
-                self.publish_static_tf_rhc_nodes(i)
-            
             # publish robot state
-            publishers[self.state_ns].publish(JointState(
+            self.publishers[self.state_ns].publish(JointState(
                     header=rospy.Header(stamp=rospy.Time.now()),
                     name=joint_names,
                     position=self.generate_random_joint_positions(joint_names),

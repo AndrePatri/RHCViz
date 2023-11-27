@@ -310,25 +310,6 @@ class RHCViz:
 
         self.publishers[self.state_ns].publish(joint_state)
 
-    # def start_robot_state_publisher(self, urdf, robot_ns):
-    #     """
-    #     Start a robot_state_publisher for a robot namespace with specified CPU affinity.
-    #     """
-
-    #     # Set the robot description for each namespace
-    #     full_param_name = '/{}/robot_description'.format(robot_ns)
-    #     rospy.set_param(full_param_name, urdf)
-
-    #     taskset_command = self.get_taskset_command()
-    #     rsp_command = [
-    #         'rosrun', 'robot_state_publisher', 'robot_state_publisher',
-    #         '__ns:=' + robot_ns,
-    #         '_tf_prefix:=' + robot_ns
-    #     ]
-    #     full_command = taskset_command + rsp_command
-    #     rsp_process = subprocess.Popen(full_command)
-    #     return rsp_process
-
     def start_robot_state_publisher(self, urdf, robot_ns, node_index):
         """
         Start a robot_state_publisher for a robot namespace with specified CPU affinity,

@@ -58,6 +58,11 @@ class RHCViz:
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
+        
+        self.rhc_state_topicname = f"/{self.namespace}_rhc_q"
+        self.robot_state_topicname = f"/{self.namespace}_robot_q"
+
+        self.rsp_processes = []
 
     def get_taskset_command(self):
         """
@@ -128,19 +133,27 @@ class RHCViz:
 
         return joint_names, state_dimensions
 
-    def initialize_subscriber(self):
+    def initialize_rhc_subscriber(self, 
+                        topic_name: str):
         """
-        Initialize the subscriber to listen to the joint and pose data.
+        Initialize the subscriber to listen to the rhc state data.
         """
-        robot_name = "aliengo"  # Replace with actual robot name
-        topic_name = f"/{robot_name}_q"
         self.subscriber = rospy.Subscriber(topic_name, 
             Float64MultiArray, 
-            self.pose_and_joint_callback)
+            self.rhc_state_callback)
 
-    def pose_and_joint_callback(self, data):
+    def initialize_robot_state_subscriber(self, 
+                        topic_name: str):
         """
-        Callback function for processing incoming pose and joint data.
+        Initialize the subscriber to listen to robot state data.
+        """
+        self.subscriber = rospy.Subscriber(topic_name, 
+            Float64MultiArray, 
+            self.robot_state_callback)
+        
+    def rhc_state_callback(self, data):
+        """
+        Callback function for processing incoming RHC state data.
         """
         # Convert data to numpy array and reshape
         matrix = np.array(data.data).reshape((-1, self.n_robots))
@@ -149,7 +162,7 @@ class RHCViz:
         # Check if number of joints match
         expected_joints = len(self.joint_names)
         if (n_rows - 7) != expected_joints:
-            rospy.logerr("Number of joints in the message does not match the robot model.")
+            rospy.logerr(f"Number of actuated joints in the message {n_rows - 7} does not match the robot model ({expected_joints}).")
             return
 
         for i in range(self.n_robots):
@@ -158,11 +171,31 @@ class RHCViz:
             joint_positions = matrix[7:, i]  # Rest are joint positions
 
             # Publish base pose and joint positions for this node
-            self.publish_base_pose_and_joints(i, base_pose, joint_positions)
-        
-    def publish_base_pose_and_joints(self, node_index, base_pose, joint_positions):
+            self.publish_rhc_state_to_rviz(i, base_pose, joint_positions)
+    
+    def robot_state_callback(self, data):
         """
-        Publish base pose and joint positions for a specific node.
+        Callback function for processing incoming robot state data.
+        """
+        # Convert data to numpy array and reshape
+        matrix = np.array(data.data).reshape((-1, 1))
+        n_rows, n_cols = matrix.shape
+
+        # Check if number of joints match
+        expected_joints = len(self.joint_names)
+        if (n_rows - 7) != expected_joints:
+            rospy.logerr(f"Number of actuated joints in the message {n_rows - 7} does not match the robot model ({expected_joints}).")
+            return
+
+        base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)
+        joint_positions = matrix[7:, 0]  # Rest are joint positions
+
+        # Publish base pose and joint positions for this node
+        self.publish_robot_state_to_rviz(base_pose, joint_positions)
+
+    def publish_rhc_state_to_rviz(self, node_index, base_pose, joint_positions):
+        """
+        Publish rhc state to rviz
         """
         # Publish base pose
         transform = TransformStamped()
@@ -187,12 +220,39 @@ class RHCViz:
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
 
-    def generate_random_joint_positions(self, joint_names):
+    def publish_robot_state_to_rviz(self, base_pose, joint_positions):
         """
-        Generate random joint positions. Here we assume each joint can move between -pi and pi.
-        This can be adjusted based on the actual joint limits of the robot.
+        Publish robot state to rviz
         """
-        return [random.uniform(-3.14, 3.14) for _ in joint_names]
+        # Publish base pose
+        transform = TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = 'world'
+        transform.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
+        transform.transform.translation.x = base_pose[0]
+        transform.transform.translation.y = base_pose[1]
+        transform.transform.translation.z = base_pose[2]
+        transform.transform.rotation.x = base_pose[3]
+        transform.transform.rotation.y = base_pose[4]
+        transform.transform.rotation.z = base_pose[5]
+        transform.transform.rotation.w = base_pose[6]
+
+        self.tf_broadcaster.sendTransform(transform)
+
+        # Publish joint positions
+        joint_state = JointState()
+        joint_state.header.stamp = rospy.Time.now()
+        joint_state.name = self.joint_names
+        joint_state.position = joint_positions
+
+        self.publishers[self.state_ns].publish(joint_state)
+
+    # def generate_random_joint_positions(self, joint_names):
+    #     """
+    #     Generate random joint positions. Here we assume each joint can move between -pi and pi.
+    #     This can be adjusted based on the actual joint limits of the robot.
+    #     """
+    #     return [random.uniform(-3.14, 3.14) for _ in joint_names]
 
     def start_robot_state_publisher(self, urdf, robot_ns):
         """
@@ -213,47 +273,47 @@ class RHCViz:
         rsp_process = subprocess.Popen(full_command)
         return rsp_process
 
-    def publish_static_tf_rhc_nodes(self, 
-                                index: int):
+    # def publish_static_tf_rhc_nodes(self, 
+    #                             index: int):
 
-        """
-        Publish static transforms from world to base_link for each robot.
-        """
-        static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+    #     """
+    #     Publish static transforms from world to base_link for each robot.
+    #     """
+    #     static_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
-        # RHC node
-        static_transform_stamped = TransformStamped()
-        static_transform_stamped.header.stamp = rospy.Time.now()
-        static_transform_stamped.header.frame_id = 'world'
-        static_transform_stamped.child_frame_id = f'{self.nodes_tf_prefixes[index]}/{self.baselink_name}'
-        static_transform_stamped.transform.translation.x = 0.0
-        static_transform_stamped.transform.translation.y = 0.0
-        static_transform_stamped.transform.translation.z = 0.0
-        static_transform_stamped.transform.rotation.x = 0.0
-        static_transform_stamped.transform.rotation.y = 0.0
-        static_transform_stamped.transform.rotation.z = 0.0
-        static_transform_stamped.transform.rotation.w = 1.0
+    #     # RHC node
+    #     static_transform_stamped = TransformStamped()
+    #     static_transform_stamped.header.stamp = rospy.Time.now()
+    #     static_transform_stamped.header.frame_id = 'world'
+    #     static_transform_stamped.child_frame_id = f'{self.nodes_tf_prefixes[index]}/{self.baselink_name}'
+    #     static_transform_stamped.transform.translation.x = 0.0
+    #     static_transform_stamped.transform.translation.y = 0.0
+    #     static_transform_stamped.transform.translation.z = 0.0
+    #     static_transform_stamped.transform.rotation.x = 0.0
+    #     static_transform_stamped.transform.rotation.y = 0.0
+    #     static_transform_stamped.transform.rotation.z = 0.0
+    #     static_transform_stamped.transform.rotation.w = 1.0
 
-        static_broadcaster.sendTransform(static_transform_stamped)
+    #     static_broadcaster.sendTransform(static_transform_stamped)
     
-    def publish_static_tf_robot_state(self):
+    # def publish_static_tf_robot_state(self):
         
-        static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+    #     static_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
-        # robot actual state
-        static_transform_stamped = TransformStamped()
-        static_transform_stamped.header.stamp = rospy.Time.now()
-        static_transform_stamped.header.frame_id = 'world'
-        static_transform_stamped.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
-        static_transform_stamped.transform.translation.x = 0.0
-        static_transform_stamped.transform.translation.y = 0.0
-        static_transform_stamped.transform.translation.z = 0.0
-        static_transform_stamped.transform.rotation.x = 0.0
-        static_transform_stamped.transform.rotation.y = 0.0
-        static_transform_stamped.transform.rotation.z = 0.0
-        static_transform_stamped.transform.rotation.w = 1.0
+    #     # robot actual state
+    #     static_transform_stamped = TransformStamped()
+    #     static_transform_stamped.header.stamp = rospy.Time.now()
+    #     static_transform_stamped.header.frame_id = 'world'
+    #     static_transform_stamped.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
+    #     static_transform_stamped.transform.translation.x = 0.0
+    #     static_transform_stamped.transform.translation.y = 0.0
+    #     static_transform_stamped.transform.translation.z = 0.0
+    #     static_transform_stamped.transform.rotation.x = 0.0
+    #     static_transform_stamped.transform.rotation.y = 0.0
+    #     static_transform_stamped.transform.rotation.z = 0.0
+    #     static_transform_stamped.transform.rotation.w = 1.0
 
-        static_broadcaster.sendTransform(static_transform_stamped)
+    #     static_broadcaster.sendTransform(static_transform_stamped)
 
     def launch_rviz(self):
         """
@@ -278,17 +338,12 @@ class RHCViz:
         # Launch RViz in a separate process
         rviz_process = self.launch_rviz()
 
-        # Start a robot_state_publisher for each RHC node
-        rsp_processes = []
+        # Start a robot_state_publisher for each RHC node and for the robot state
         for i in range(self.n_robots):
 
-            rsp_processes.append(self.start_robot_state_publisher(robot_description, self.nodes_ns[i]))
+            self.rsp_processes.append(self.start_robot_state_publisher(robot_description, self.nodes_ns[i]))
 
-        # Start another robot_state_publisher for the robot state
-        rsp_processes.append(self.start_robot_state_publisher(robot_description, self.state_ns))
-
-        # # Publish static transforms for each robot
-        # self.publish_static_transforms_for_robots(self.n_robots)
+        self.rsp_processes.append(self.start_robot_state_publisher(robot_description, self.state_ns))
 
         # Publishers for RHC nodes
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -297,37 +352,23 @@ class RHCViz:
             self.publishers[ns] = rospy.Publisher(f'/{ns}/joint_states', JointState, queue_size=10)
         # Pubilisher for robot state
         self.publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
+        
+        # subscribers to rhc states and robot state
+        self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
+        self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
 
-        self.initialize_subscriber()
-
-        # Give time for the robot_state_publishers to start
-        rospy.sleep(2)
+        # give some time for the robot_state_publishers to start
+        rospy.sleep(3)
     
         rate = rospy.Rate(self.rate) 
         while not rospy.is_shutdown():
             
-            # publish robot state
-            self.publishers[self.state_ns].publish(JointState(
-                    header=rospy.Header(stamp=rospy.Time.now()),
-                    name=joint_names,
-                    position=self.generate_random_joint_positions(joint_names),
-                    velocity=[0]*len(joint_names),
-                    effort=[0]*len(joint_names)))
-            # Publish static transforms for each robot
-            self.publish_static_tf_robot_state()
-            
             rate.sleep()
-
-            # loop_end_time = time.time()  # End time of the loop
-            # loop_duration = loop_end_time - loop_start_time
-            # expected_duration = 1.0 / self.rate
-            # if loop_duration > expected_duration:
-            #     rospy.logwarn(f"Loop overran desired rate: Duration {loop_duration:.4f}s > Expected {expected_duration:.4f}s")
-
+            
         rviz_process.terminate()
 
-        # Cleanup robot_state_publisher processes
-        for rsp_process in rsp_processes:
+        # Cleanup robot_state_publisher child processes
+        for rsp_process in self.rsp_processes:
             rsp_process.terminate()
 
 if __name__ == '__main__':

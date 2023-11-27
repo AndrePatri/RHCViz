@@ -29,10 +29,13 @@ class RHCViz:
             basename: str = "RHCViz", 
             handshake_basename: str = "HandShake",
             rate: float = 100,
-            cpu_cores: list = None):
+            cpu_cores: list = None, 
+            use_only_collisions = False):
         
         self.syspaths = PathsGetter()
         
+        self.use_only_collisions = use_only_collisions
+
         self.namespace = namespace
         self.basename = basename
 
@@ -137,8 +140,8 @@ class RHCViz:
                 'Class': 'rviz/RobotModel',
                 'Name': 'RHCNode{}'.format(i),
                 'Enabled': True,
-                'Visual Enabled': True,
-                'Collision Enabled': False,
+                'Visual Enabled': False if self.use_only_collisions else True,
+                'Collision Enabled': True if self.use_only_collisions else False,
                 'Robot Description': f'{self.robot_description_name}',
                 'TF Prefix': f'{self.nodes_tf_prefixes[i]}',
                 'Alpha': alpha_value

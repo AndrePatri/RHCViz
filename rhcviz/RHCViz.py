@@ -121,15 +121,25 @@ class RHCViz:
         with open(self.rviz_config_path, 'r') as file:
             config = yaml.safe_load(file)
 
+        # Transparency level for RHC nodes
+        alpha_value_start = 0.9  
+        alpha_value_end = 0.6
+
+        import math  
+        alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / self.n_rhc_nodes
+
         # add robot models for each node
         for i in range(self.n_rhc_nodes):
             
+            alpha_value = alpha_value_start * math.exp(-alpha_decay_rate * i)
+
             rhcnode_config = {
                 'Class': 'rviz/RobotModel',
                 'Name': 'RHCNode{}'.format(i),
                 'Enabled': True,
                 'Robot Description': f'{self.robot_description_name}',
-                'TF Prefix': f'{self.nodes_tf_prefixes[i]}'
+                'TF Prefix': f'{self.nodes_tf_prefixes[i]}',
+                'Alpha': alpha_value
             }
             config['Visualization Manager']['Displays'].append(rhcnode_config)
 

@@ -19,7 +19,7 @@ def publish_handshake(n_rhc_nodes: int,
     handshake_topicname = f"/{global_ns}_{handshake_basename}"
 
     # Define the rate of publishing handshake info (low rate)
-    handshake_rate = rospy.Rate(0.1) 
+    handshake_rate = rospy.Rate(0.5) 
 
     handshake = RHCVizHandshake(handshake_topicname, is_server=True)
     

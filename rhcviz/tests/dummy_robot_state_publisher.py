@@ -8,7 +8,12 @@ import numpy as np
 def publish_robot_state(robot_type):
     rospy.init_node('robot_state_publisher')
 
-    topic_name = f"/{robot_type}_robot_q"
+    basename = "RHCViz_test"
+    namespace = robot_type
+    global_ns = f"{basename}_{namespace}"
+    
+    topic_name = f"/{global_ns}_robot_q"
+
     pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)
     
     rate_value = 1  # Hz

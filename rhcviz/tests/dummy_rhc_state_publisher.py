@@ -5,10 +5,35 @@ import argparse
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
+from rhcviz.utils.handshake import RHCVizHandshake
+
+def handshake(handshaker: RHCVizHandshake):
+        
+    # Wait for handshake to complete
+    while not rospy.is_shutdown() and not handshaker.handshake_done():
+
+        rospy.sleep(0.1)
+
+    if handshaker.n_nodes is None:
+
+        rospy.logerr("Handshake not completed. Exiting.")
+
+        return
+    
+    return handshaker.n_nodes
+    
 def publish_rhc_state(robot_type):
     rospy.init_node('rhc_state_publisher')
+    
+    basename = "RHCViz_test"
+    namespace = robot_type
+    global_ns = f"{basename}_{namespace}"
+    
+    handshake_basename = "HandShake"
 
-    topic_name = f"/{robot_type}_rhc_q"
+    handshake_topicname = f"/{global_ns}_{handshake_basename}"
+
+    topic_name = f"/{global_ns}_rhc_q"
     pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)
     
     rate_value = 1  # Hz
@@ -19,7 +44,11 @@ def publish_rhc_state(robot_type):
         n_joints = 12
     elif robot_type == "centauro":
         n_joints = 39
-    n_nodes = 10  # Number of nodes
+
+    handshaker = RHCVizHandshake(handshake_topicname, 
+                            is_server=False)
+    
+    n_nodes = handshake(handshaker)
 
     while not rospy.is_shutdown():
         # Create a matrix with null base pose and random joint positions

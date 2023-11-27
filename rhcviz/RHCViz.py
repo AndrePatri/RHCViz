@@ -12,6 +12,7 @@ import os
 import tempfile
 
 from rhcviz.utils.sys_utils import PathsGetter
+from rhcviz.utils.handshake import RHCVizHandshake
 
 from std_msgs.msg import Float64MultiArray
 
@@ -22,16 +23,16 @@ import numpy as np
 class RHCViz:
 
     def __init__(self, 
-            urdf_file_path, 
-            n_robots, 
+            urdf_file_path: str, 
             rviz_config_path=None, 
             namespace: str = "", 
             basename: str = "RHCViz", 
+            handshake_basename: str = "HandShake",
             rate: float = 100,
             cpu_cores: list = None):
         
         self.syspaths = PathsGetter()
-
+        
         self.namespace = namespace
         self.basename = basename
 
@@ -41,28 +42,59 @@ class RHCViz:
 
         self.rate = rate
 
+        self.global_ns = f"{self.basename}_{self.namespace}"
+
+        self.n_rhc_nodes = -1
+
         self.nodes_ns = []
-        self.robot_description_name = f'{self.basename}_{self.namespace}/robot_description' # one robot
+        self.robot_description_name = f'{self.global_ns}/robot_description' # one robot
         # description for all
         self.nodes_tf_prefixes = []
-        for i in range(0, n_robots):
-            
-            self.nodes_ns.append(f'{self.basename}_{self.namespace}_node_{i}')
-            self.nodes_tf_prefixes.append(f'{self.nodes_ns[i]}')
-
-        self.state_ns = f'{self.basename}_{self.namespace}_state'
+        
+        self.state_ns = f'{self.global_ns}_state'
         self.state_tf_prefix = self.state_ns
 
         self.urdf_file_path = urdf_file_path
-        self.n_robots = n_robots
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
         
-        self.rhc_state_topicname = f"/{self.namespace}_rhc_q"
-        self.robot_state_topicname = f"/{self.namespace}_robot_q"
+        self.rhc_state_topicname = f"/{self.global_ns}_rhc_q"
+        self.robot_state_topicname = f"/{self.global_ns}_robot_q"
+        self.handshake_basename = handshake_basename
+        self.handshake_topicname = f"/{self.global_ns}_{self.handshake_basename}"
 
         self.rsp_processes = []
+
+        self.handshaker = RHCVizHandshake(self.handshake_topicname, 
+                                    is_server=False)
+    
+    def handshake(self):
+        
+        # Wait for handshake to complete
+        while not rospy.is_shutdown() and not self.handshaker.handshake_done():
+            
+            rospy.loginfo(f"Waiting for handshake data...")
+
+            rospy.sleep(0.3)
+
+        if self.handshaker.n_nodes is None:
+
+            rospy.logerr("Handshake not completed. Exiting.")
+
+            return
+        
+        self.n_rhc_nodes = self.handshaker.n_nodes
+    
+    def finalize_init(self):
+
+        # to be called after all the handshake info is
+        # available
+
+        for i in range(0, self.n_rhc_nodes):
+            
+            self.nodes_ns.append(f'{self.global_ns}_node_{i}')
+            self.nodes_tf_prefixes.append(f'{self.nodes_ns[i]}')
 
     def get_taskset_command(self):
         """
@@ -90,7 +122,7 @@ class RHCViz:
             config = yaml.safe_load(file)
 
         # add robot models for each node
-        for i in range(self.n_robots):
+        for i in range(self.n_rhc_nodes):
             
             rhcnode_config = {
                 'Class': 'rviz/RobotModel',
@@ -156,7 +188,7 @@ class RHCViz:
         Callback function for processing incoming RHC state data.
         """
         # Convert data to numpy array and reshape
-        matrix = np.array(data.data).reshape((-1, self.n_robots))
+        matrix = np.array(data.data).reshape((-1, self.n_rhc_nodes))
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
@@ -165,7 +197,7 @@ class RHCViz:
             rospy.logerr(f"Number of actuated joints in the message {n_rows - 7} does not match the robot model ({expected_joints}).")
             return
 
-        for i in range(self.n_robots):
+        for i in range(self.n_rhc_nodes):
             # Extract base pose and joint positions for node i
             base_pose = matrix[0:7, i]  # First 7 elements (position + quaternion)
             joint_positions = matrix[7:, i]  # Rest are joint positions
@@ -247,13 +279,6 @@ class RHCViz:
 
         self.publishers[self.state_ns].publish(joint_state)
 
-    # def generate_random_joint_positions(self, joint_names):
-    #     """
-    #     Generate random joint positions. Here we assume each joint can move between -pi and pi.
-    #     This can be adjusted based on the actual joint limits of the robot.
-    #     """
-    #     return [random.uniform(-3.14, 3.14) for _ in joint_names]
-
     def start_robot_state_publisher(self, urdf, robot_ns):
         """
         Start a robot_state_publisher for a robot namespace with specified CPU affinity.
@@ -273,48 +298,6 @@ class RHCViz:
         rsp_process = subprocess.Popen(full_command)
         return rsp_process
 
-    # def publish_static_tf_rhc_nodes(self, 
-    #                             index: int):
-
-    #     """
-    #     Publish static transforms from world to base_link for each robot.
-    #     """
-    #     static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
-    #     # RHC node
-    #     static_transform_stamped = TransformStamped()
-    #     static_transform_stamped.header.stamp = rospy.Time.now()
-    #     static_transform_stamped.header.frame_id = 'world'
-    #     static_transform_stamped.child_frame_id = f'{self.nodes_tf_prefixes[index]}/{self.baselink_name}'
-    #     static_transform_stamped.transform.translation.x = 0.0
-    #     static_transform_stamped.transform.translation.y = 0.0
-    #     static_transform_stamped.transform.translation.z = 0.0
-    #     static_transform_stamped.transform.rotation.x = 0.0
-    #     static_transform_stamped.transform.rotation.y = 0.0
-    #     static_transform_stamped.transform.rotation.z = 0.0
-    #     static_transform_stamped.transform.rotation.w = 1.0
-
-    #     static_broadcaster.sendTransform(static_transform_stamped)
-    
-    # def publish_static_tf_robot_state(self):
-        
-    #     static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
-    #     # robot actual state
-    #     static_transform_stamped = TransformStamped()
-    #     static_transform_stamped.header.stamp = rospy.Time.now()
-    #     static_transform_stamped.header.frame_id = 'world'
-    #     static_transform_stamped.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
-    #     static_transform_stamped.transform.translation.x = 0.0
-    #     static_transform_stamped.transform.translation.y = 0.0
-    #     static_transform_stamped.transform.translation.z = 0.0
-    #     static_transform_stamped.transform.rotation.x = 0.0
-    #     static_transform_stamped.transform.rotation.y = 0.0
-    #     static_transform_stamped.transform.rotation.z = 0.0
-    #     static_transform_stamped.transform.rotation.w = 1.0
-
-    #     static_broadcaster.sendTransform(static_transform_stamped)
-
     def launch_rviz(self):
         """
         Launch RViz with specified CPU affinity.
@@ -329,17 +312,19 @@ class RHCViz:
 
         rospy.init_node('RHCViz', anonymous=True)
 
+        self.handshake() # blocks, waits for handshake data to be available
+
+        self.finalize_init()
+
         robot_description = self.read_urdf_file(self.urdf_file_path)
         # Set the robot description for each namespace
         rospy.set_param(self.robot_description_name, robot_description)
-
-        joint_names, _ = self.get_joint_info(URDF.from_xml_string(robot_description))
 
         # Launch RViz in a separate process
         rviz_process = self.launch_rviz()
 
         # Start a robot_state_publisher for each RHC node and for the robot state
-        for i in range(self.n_robots):
+        for i in range(self.n_rhc_nodes):
 
             self.rsp_processes.append(self.start_robot_state_publisher(robot_description, self.nodes_ns[i]))
 
@@ -364,7 +349,7 @@ class RHCViz:
         while not rospy.is_shutdown():
             
             rate.sleep()
-            
+
         rviz_process.terminate()
 
         # Cleanup robot_state_publisher child processes
@@ -377,13 +362,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Multi Robot Visualizer")
     parser.add_argument('urdf_file_path', type=str, help="Path to the URDF file")
-    parser.add_argument('n_robots', type=int, help="Number of robots")
     parser.add_argument('--rviz_config', type=str, help="Path to the RViz configuration file", default=None)
 
     args = parser.parse_args()
 
     rhcviz = RHCViz(urdf_file_path=args.urdf_file_path, 
-           n_robots=args.n_robots, 
            rviz_config_path=args.rviz_config, 
            namespace="", 
            basename="RHCViz_test")

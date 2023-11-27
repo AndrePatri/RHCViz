@@ -123,7 +123,7 @@ class RHCViz:
 
         # Transparency level for RHC nodes
         alpha_value_start = 0.9  
-        alpha_value_end = 0.6
+        alpha_value_end = 0.2
 
         import math  
         alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / self.n_rhc_nodes
@@ -137,6 +137,8 @@ class RHCViz:
                 'Class': 'rviz/RobotModel',
                 'Name': 'RHCNode{}'.format(i),
                 'Enabled': True,
+                'Visual Enabled': True,
+                'Collision Enabled': False,
                 'Robot Description': f'{self.robot_description_name}',
                 'TF Prefix': f'{self.nodes_tf_prefixes[i]}',
                 'Alpha': alpha_value
@@ -149,6 +151,8 @@ class RHCViz:
             'Class': 'rviz/RobotModel',
             'Name': 'RobotState',
             'Enabled': True,
+            'Visual Enabled': False,
+            'Collision Enabled': True, # to better distinguish the state from the nodes
             'Robot Description': f'{self.robot_description_name}',
             'TF Prefix': f'{self.state_tf_prefix}'
         }
@@ -289,16 +293,42 @@ class RHCViz:
 
         self.publishers[self.state_ns].publish(joint_state)
 
-    def start_robot_state_publisher(self, urdf, robot_ns):
+    # def start_robot_state_publisher(self, urdf, robot_ns):
+    #     """
+    #     Start a robot_state_publisher for a robot namespace with specified CPU affinity.
+    #     """
+
+    #     # Set the robot description for each namespace
+    #     full_param_name = '/{}/robot_description'.format(robot_ns)
+    #     rospy.set_param(full_param_name, urdf)
+
+    #     taskset_command = self.get_taskset_command()
+    #     rsp_command = [
+    #         'rosrun', 'robot_state_publisher', 'robot_state_publisher',
+    #         '__ns:=' + robot_ns,
+    #         '_tf_prefix:=' + robot_ns
+    #     ]
+    #     full_command = taskset_command + rsp_command
+    #     rsp_process = subprocess.Popen(full_command)
+    #     return rsp_process
+
+    def start_robot_state_publisher(self, urdf, robot_ns, node_index):
         """
-        Start a robot_state_publisher for a robot namespace with specified CPU affinity.
+        Start a robot_state_publisher for a robot namespace with specified CPU affinity,
+        based on the node index.
         """
+        # Calculate the appropriate CPU core for this node
+        if self.cpu_cores and len(self.cpu_cores) > 0:
+            core_index = node_index % len(self.cpu_cores)
+            selected_core = self.cpu_cores[core_index]
+            taskset_command = ['taskset', '-c', str(selected_core)]
+        else:
+            taskset_command = []
 
         # Set the robot description for each namespace
         full_param_name = '/{}/robot_description'.format(robot_ns)
         rospy.set_param(full_param_name, urdf)
 
-        taskset_command = self.get_taskset_command()
         rsp_command = [
             'rosrun', 'robot_state_publisher', 'robot_state_publisher',
             '__ns:=' + robot_ns,
@@ -307,7 +337,7 @@ class RHCViz:
         full_command = taskset_command + rsp_command
         rsp_process = subprocess.Popen(full_command)
         return rsp_process
-
+    
     def launch_rviz(self):
         """
         Launch RViz with specified CPU affinity.
@@ -334,11 +364,10 @@ class RHCViz:
         rviz_process = self.launch_rviz()
 
         # Start a robot_state_publisher for each RHC node and for the robot state
-        for i in range(self.n_rhc_nodes):
-
-            self.rsp_processes.append(self.start_robot_state_publisher(robot_description, self.nodes_ns[i]))
-
-        self.rsp_processes.append(self.start_robot_state_publisher(robot_description, self.state_ns))
+        total_nodes = self.n_rhc_nodes + 1  # Including robot state
+        for i in range(total_nodes):
+            node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
+            self.rsp_processes.append(self.start_robot_state_publisher(robot_description, node_ns, i))
 
         # Publishers for RHC nodes
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()

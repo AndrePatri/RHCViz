@@ -49,13 +49,20 @@ def publish_rhc_state(robot_type):
                             is_server=False)
     
     n_nodes = handshake(handshaker)
+    x_offset = 1.2  # Increment along the x-axis for each node
 
     while not rospy.is_shutdown():
-        # Create a matrix with null base pose and random joint positions
-        base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
-        base_pose[6] = 1  # Ensure valid quaternion
+        # Create a matrix for base pose and random joint positions
+        base_poses = []
+        for i in range(n_nodes):
+            base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
+            base_pose[6] = 1  # Ensure valid quaternion
+            base_pose[0] = i * x_offset  # Increment x position for each node
+            base_poses.append(base_pose)
+
+        # Stack all base poses and joint positions to form the matrix
         joint_positions = np.random.uniform(-3.14, 3.14, (n_joints, n_nodes))
-        matrix = np.vstack((np.tile(base_pose, (n_nodes, 1)).T, joint_positions))
+        matrix = np.vstack((np.array(base_poses).T, joint_positions))
 
         # Publish the matrix
         msg = Float64MultiArray(data=matrix.flatten())

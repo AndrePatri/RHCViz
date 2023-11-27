@@ -16,7 +16,7 @@ def publish_robot_state(robot_type):
 
     pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)
     
-    rate_value = 1  # Hz
+    rate_value = 1 # Hz
     rate = rospy.Rate(rate_value)
 
     # Set number of joints based on robot type

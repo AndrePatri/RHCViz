@@ -6,6 +6,7 @@ from std_msgs.msg import Float64MultiArray
 import numpy as np
 
 from rhcviz.utils.handshake import RHCVizHandshake
+from rhcviz.utils.namings import NamingConventions
 
 def handshake(handshaker: RHCVizHandshake):
         
@@ -25,16 +26,18 @@ def handshake(handshaker: RHCVizHandshake):
 def publish_rhc_state(robot_type):
     rospy.init_node('rhc_state_publisher')
     
+    names = NamingConventions()
+
     basename = "RHCViz_test"
-    namespace = robot_type
-    global_ns = f"{basename}_{namespace}"
+    handshake_topicname = names.handshake_topicname(basename=basename, 
+                                        namespace=robot_type)
+
+    topic_name = names.rhc_q_topicname(basename=basename, 
+                                    namespace=robot_type)
     
-    handshake_basename = "HandShake"
-
-    handshake_topicname = f"/{global_ns}_{handshake_basename}"
-
-    topic_name = f"/{global_ns}_rhc_q"
-    pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)
+    pub = rospy.Publisher(topic_name, 
+                        Float64MultiArray, 
+                        queue_size=10)
     
     rate_value = 1  # Hz
     rate = rospy.Rate(rate_value)
@@ -54,6 +57,7 @@ def publish_rhc_state(robot_type):
     while not rospy.is_shutdown():
         # Create a matrix for base pose and random joint positions
         base_poses = []
+
         for i in range(n_nodes):
             base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
             base_pose[6] = 1  # Ensure valid quaternion

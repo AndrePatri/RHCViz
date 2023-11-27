@@ -23,7 +23,7 @@ if __name__ == '__main__':
            namespace=args.robot_type, 
            basename="RHCViz_test", 
            rate = 10,
-           cpu_cores = [13, 14, 15],
+           cpu_cores = [14, 15],
            use_only_collisions=False         
            )
     

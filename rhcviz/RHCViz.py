@@ -18,6 +18,8 @@ from std_msgs.msg import Float64MultiArray
 
 import numpy as np
 
+from rhcviz.utils.namings import NamingConventions
+
 # import time
 
 class RHCViz:
@@ -27,13 +29,14 @@ class RHCViz:
             rviz_config_path=None, 
             namespace: str = "", 
             basename: str = "RHCViz", 
-            handshake_basename: str = "HandShake",
             rate: float = 100,
             cpu_cores: list = None, 
             use_only_collisions = False):
         
         self.syspaths = PathsGetter()
         
+        self.names = NamingConventions()
+
         self.use_only_collisions = use_only_collisions
 
         self.namespace = namespace
@@ -45,27 +48,32 @@ class RHCViz:
 
         self.rate = rate
 
-        self.global_ns = f"{self.basename}_{self.namespace}"
-
         self.n_rhc_nodes = -1
 
         self.nodes_ns = []
-        self.robot_description_name = f'{self.global_ns}/robot_description' # one robot
+        self.robot_description_name = self.names.robot_description_name(basename=self.basename, 
+                                                    namespace=self.namespace)
+        
         # description for all
         self.nodes_tf_prefixes = []
         
-        self.state_ns = f'{self.global_ns}_state'
-        self.state_tf_prefix = self.state_ns
+        self.state_ns = self.names.robot_state_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        self.state_tf_prefix = self.names.robot_state_tf_pref(basename=self.basename, 
+                                                namespace=self.namespace)
 
         self.urdf_file_path = urdf_file_path
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
         
-        self.rhc_state_topicname = f"/{self.global_ns}_rhc_q"
-        self.robot_state_topicname = f"/{self.global_ns}_robot_q"
-        self.handshake_basename = handshake_basename
-        self.handshake_topicname = f"/{self.global_ns}_{self.handshake_basename}"
+        self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
+        
+        self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
 
         self.rsp_processes = []
 
@@ -96,8 +104,12 @@ class RHCViz:
 
         for i in range(0, self.n_rhc_nodes):
             
-            self.nodes_ns.append(f'{self.global_ns}_node_{i}')
-            self.nodes_tf_prefixes.append(f'{self.nodes_ns[i]}')
+            self.nodes_ns.append(self.names.rhc_state_ns(basename=self.basename, 
+                                                    namespace=self.namespace, 
+                                                    index=i))
+            self.nodes_tf_prefixes.append(self.names.rhc_state_tf_pref(basename=self.basename, 
+                                                    namespace=self.namespace, 
+                                                    index=i))
 
     def get_taskset_command(self):
         """
@@ -211,7 +223,8 @@ class RHCViz:
         # Check if number of joints match
         expected_joints = len(self.joint_names)
         if (n_rows - 7) != expected_joints:
-            rospy.logerr(f"Number of actuated joints in the message {n_rows - 7} does not match the robot model ({expected_joints}).")
+            rospy.logerr(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
+                    f"does not match the robot model ({expected_joints}).")
             return
 
         for i in range(self.n_rhc_nodes):
@@ -233,7 +246,8 @@ class RHCViz:
         # Check if number of joints match
         expected_joints = len(self.joint_names)
         if (n_rows - 7) != expected_joints:
-            rospy.logerr(f"Number of actuated joints in the message {n_rows - 7} does not match the robot model ({expected_joints}).")
+            rospy.logerr(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
+                    f"does not match the robot model ({expected_joints}).")
             return
 
         base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)

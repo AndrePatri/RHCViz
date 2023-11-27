@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 import rospy
-import random
-import argparse
-from std_msgs.msg import Float64MultiArray
 
-import numpy as np
+import argparse
 
 from rhcviz.utils.handshake import RHCVizHandshake
+from rhcviz.utils.namings import NamingConventions
 
 def publish_handshake(n_rhc_nodes: int, 
                 robot_type: str):
     rospy.init_node('handshake_publisher')
     
-    basename = "RHCViz_test"
-    global_ns = f"{basename}_{robot_type}"
-    handshake_basename = "HandShake"
+    names = NamingConventions()
 
-    handshake_topicname = f"/{global_ns}_{handshake_basename}"
+    basename = "RHCViz_test"
+
+    handshake_topicname = names.handshake_topicname(basename=basename, 
+                                            namespace=robot_type) 
 
     # Define the rate of publishing handshake info (low rate)
     handshake_rate = rospy.Rate(0.5) 

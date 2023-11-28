@@ -1,5 +1,5 @@
 import rospy
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, String
 
 class RHCVizHandshake:
 
@@ -27,7 +27,7 @@ class RHCVizHandshake:
             self.subscriber = rospy.Subscriber(handshake_topic, 
                                             Float64MultiArray, 
                                             self.handshake_callback)
-
+        
     def handshake_callback(self, data):
 
         self.n_nodes = int(data.data[self.PARAM_INDEX_N_ROBOTS])

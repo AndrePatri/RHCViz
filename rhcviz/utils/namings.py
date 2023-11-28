@@ -31,7 +31,7 @@ class NamingConventions:
         global_ns = self.global_ns(basename = basename, 
                                 namespace=namespace)
 
-        topic_name = f"/{global_ns}_{self.RHC_Q_NAME}"
+        topic_name = f"/{global_ns}_{self.ROBOT_Q_NAME}"
 
         return topic_name
     
@@ -42,7 +42,7 @@ class NamingConventions:
         global_ns = self.global_ns(basename = basename, 
                                 namespace=namespace)
 
-        topic_name = f"/{global_ns}_{self.ROBOT_Q_NAME}"
+        topic_name = f"/{global_ns}_{self.RHC_Q_NAME}"
 
         return topic_name
 

@@ -31,13 +31,16 @@ class RHCViz:
             basename: str = "RHCViz", 
             rate: float = 100,
             cpu_cores: list = None, 
-            use_only_collisions = False):
+            use_only_collisions = False, 
+            nodes_perc: int = 100):
         
         self.syspaths = PathsGetter()
         
         self.names = NamingConventions()
 
         self.use_only_collisions = use_only_collisions
+
+        self.nodes_perc = max(0, min(nodes_perc, 100))  # Ensure within 0-100 range
 
         self.namespace = namespace
         self.basename = basename
@@ -49,11 +52,15 @@ class RHCViz:
         self.rate = rate
 
         self.n_rhc_nodes = -1
+        self.rhc_indeces = [] # might be a subset of [0, ..., self.n_rhc_nodes - 1]
 
         self.nodes_ns = []
         self.robot_description_name = self.names.robot_description_name(basename=self.basename, 
                                                     namespace=self.namespace)
         
+        self.rhc_state_subscriber = None
+        self.robot_state_subscriber = None
+
         # description for all
         self.nodes_tf_prefixes = []
         
@@ -97,10 +104,23 @@ class RHCViz:
         
         self.n_rhc_nodes = self.handshaker.n_nodes
     
+    def calculate_nodes_indices(self, total_nodes, percentage):
+        """Calculate and return indices of nodes to display."""
+        if percentage >= 100 or total_nodes <= 1:
+            return list(range(total_nodes))
+        
+        num_nodes_to_display = max(1, total_nodes * percentage // 100)
+        step = total_nodes / float(num_nodes_to_display)
+        return [int(step * i) for i in range(num_nodes_to_display)]
+    
     def finalize_init(self):
 
         # to be called after all the handshake info is
         # available
+
+        # Calculate indices of nodes to display
+        self.rhc_indeces = self.calculate_nodes_indices(self.n_rhc_nodes, 
+                                                self.nodes_perc)
 
         for i in range(0, self.n_rhc_nodes):
             
@@ -141,21 +161,21 @@ class RHCViz:
         alpha_value_end = 0.2
 
         import math  
-        alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / self.n_rhc_nodes
+        alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / len(self.rhc_indeces)
 
         # add robot models for each node
-        for i in range(self.n_rhc_nodes):
+        for i in range(len(self.rhc_indeces)):
             
             alpha_value = alpha_value_start * math.exp(-alpha_decay_rate * i)
 
             rhcnode_config = {
                 'Class': 'rviz/RobotModel',
-                'Name': 'RHCNode{}'.format(i),
+                'Name': 'RHCNode{}'.format(self.rhc_indeces[i]),
                 'Enabled': True,
                 'Visual Enabled': False if self.use_only_collisions else True,
                 'Collision Enabled': True if self.use_only_collisions else False,
                 'Robot Description': f'{self.robot_description_name}',
-                'TF Prefix': f'{self.nodes_tf_prefixes[i]}',
+                'TF Prefix': f'{self.nodes_tf_prefixes[self.rhc_indeces[i]]}',
                 'Alpha': alpha_value
             }
             config['Visualization Manager']['Displays'].append(rhcnode_config)
@@ -199,7 +219,7 @@ class RHCViz:
         """
         Initialize the subscriber to listen to the rhc state data.
         """
-        self.subscriber = rospy.Subscriber(topic_name, 
+        self.rhc_state_subscriber = rospy.Subscriber(topic_name, 
             Float64MultiArray, 
             self.rhc_state_callback)
 
@@ -208,7 +228,7 @@ class RHCViz:
         """
         Initialize the subscriber to listen to robot state data.
         """
-        self.subscriber = rospy.Subscriber(topic_name, 
+        self.robot_state_subscriber = rospy.Subscriber(topic_name, 
             Float64MultiArray, 
             self.robot_state_callback)
         
@@ -226,14 +246,20 @@ class RHCViz:
             rospy.logerr(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
             return
+        if n_cols != self.n_rhc_nodes:
+            rospy.logerr(f"rhc_state_callback: Number available rhc nodes in the message {n_cols} " + \
+                    f"does not match {self.n_rhc_nodes}, which is the expected one.")
+            return
+        
+        for i in range(len(self.rhc_indeces)):
 
-        for i in range(self.n_rhc_nodes):
             # Extract base pose and joint positions for node i
-            base_pose = matrix[0:7, i]  # First 7 elements (position + quaternion)
-            joint_positions = matrix[7:, i]  # Rest are joint positions
+
+            base_pose = matrix[0:7, self.rhc_indeces[i]]  # First 7 elements (position + quaternion)
+            joint_positions = matrix[7:, self.rhc_indeces[i]]  # Rest are joint positions
 
             # Publish base pose and joint positions for this node
-            self.publish_rhc_state_to_rviz(i, base_pose, joint_positions)
+            self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
     
     def robot_state_callback(self, data):
         """
@@ -249,7 +275,11 @@ class RHCViz:
             rospy.logerr(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
             return
-
+        if n_cols != 1:
+            rospy.logerr(f"robot_state_callback: received a robot state matrix with n. cols {n_cols}. " + \
+                    f"But the expeted n. cols is {1}")
+            return
+        
         base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)
         joint_positions = matrix[7:, 0]  # Rest are joint positions
 

@@ -6,6 +6,7 @@ class NamingConventions:
     def __init__(self):
         
         self.ROBOT_ACT_JNTS_NAMES = "robot_actuated_jointnames"
+        self.RHC_ACT_JNTS_NAMES = "rhc_actuated_jointnames"
 
         self.ROBOT_Q_NAME = "robot_q"
         self.RHC_Q_NAME = "rhc_q"
@@ -34,6 +35,15 @@ class NamingConventions:
                                 namespace=namespace)
     
         return  f"/{global_ns}_{self.ROBOT_ACT_JNTS_NAMES}"
+
+    def rhc_jntnames(self, 
+                    basename: str, 
+                    namespace: str):
+        
+        global_ns = self.global_ns(basename = basename, 
+                                namespace=namespace)
+    
+        return  f"/{global_ns}_{self.RHC_ACT_JNTS_NAMES}"
 
     def robot_q_topicname(self, 
                     basename: str, 

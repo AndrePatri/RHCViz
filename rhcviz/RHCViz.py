@@ -63,7 +63,8 @@ class RHCViz:
         
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
-        self.jnt_names_subscriber = None
+        self.robot_jnt_names_subscriber = None
+        self.rhc_jnt_names_subscriber = None
 
         # description for all
         self.nodes_tf_prefixes = []
@@ -78,9 +79,14 @@ class RHCViz:
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
         
-        self.joint_names_rhc = []
-        self.joint_names_acquired = False
-        self.joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
+        self.robot_joint_names = []
+        self.robot_joint_names_acquired = False
+        self.rhc_joint_names = []
+        self.rhc_joint_names_acquired = False
+
+        self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.rhc_joint_names_topicname = self.names.rhc_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
         self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
@@ -222,14 +228,23 @@ class RHCViz:
 
         return joint_names, state_dimensions
 
-    def initialize_joint_names_subscriber(self, 
+    def initialize_robot_joint_names_subscriber(self, 
                         topic_name: str):
         """
         Initialize the subscriber to listen to joint names
         """
-        self.jnt_names_subscriber = rospy.Subscriber(topic_name, 
+        self.robot_jnt_names_subscriber = rospy.Subscriber(topic_name, 
             String, 
-            self.jnt_names_callback)
+            self.robot_jnt_names_callback)
+    
+    def initialize_rhc_joint_names_subscriber(self, 
+                        topic_name: str):
+        """
+        Initialize the subscriber to listen to joint names
+        """
+        self.rhc_jnt_names_subscriber = rospy.Subscriber(topic_name, 
+            String, 
+            self.rhc_jnt_names_callback)
         
     def initialize_rhc_subscriber(self, 
                         topic_name: str):
@@ -249,13 +264,21 @@ class RHCViz:
             Float64MultiArray, 
             self.robot_state_callback)
     
-    def jnt_names_callback(self, data):
+    def robot_jnt_names_callback(self, data):
         
-        if not self.joint_names_acquired:
+        self.robot_joint_names = self.string_list_decoder.decode(data.data) 
 
-            self.joint_names_rhc = self.string_list_decoder.decode(data.data) 
-            
-            self.joint_names_acquired = True
+        if not self.robot_joint_names_acquired:
+
+            self.robot_joint_names_acquired = True
+
+    def rhc_jnt_names_callback(self, data):
+        
+        self.rhc_joint_names = self.string_list_decoder.decode(data.data) 
+
+        if not self.rhc_joint_names_acquired:
+
+            self.rhc_joint_names_acquired = True
 
     def rhc_state_callback(self, data):
         """
@@ -333,7 +356,7 @@ class RHCViz:
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = rospy.Time.now()
-        joint_state.name = self.joint_names_rhc
+        joint_state.name = self.rhc_joint_names
         joint_state.position = joint_positions
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
@@ -360,7 +383,7 @@ class RHCViz:
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = rospy.Time.now()
-        joint_state.name = self.joint_names_rhc
+        joint_state.name = self.robot_joint_names
         joint_state.position = joint_positions
 
         self.publishers[self.state_ns].publish(joint_state)
@@ -403,7 +426,7 @@ class RHCViz:
     
     def check_jnt_names_consistency(self):
 
-        return sorted(self.joint_names) == sorted(self.joint_names_rhc)
+        return sorted(self.joint_names) == sorted(self.robot_joint_names)
 
     def run(self):
 
@@ -419,13 +442,20 @@ class RHCViz:
         rospy.set_param(self.robot_description_name, robot_description)
 
         # subscribers to joint names
-        self.initialize_joint_names_subscriber(topic_name=self.joint_names_topicname)
-        while not self.joint_names_acquired:
+        self.initialize_robot_joint_names_subscriber(topic_name=self.robot_joint_names_topicname)
+        while not self.robot_joint_names_acquired:
+            
+            rospy.loginfo(f"Waiting for joint names data from robot...")
+
+            rospy.sleep(0.1)
+
+        self.initialize_rhc_joint_names_subscriber(topic_name=self.rhc_joint_names_topicname)
+        while not self.rhc_joint_names_acquired:
             
             rospy.loginfo(f"Waiting for joint names data from RHC controller...")
 
-            rospy.sleep(0.5)
-
+            rospy.sleep(0.2)
+            
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
 

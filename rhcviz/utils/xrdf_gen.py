@@ -1,63 +1,45 @@
-from abc import abstractmethod
-
+from abc import ABC, abstractmethod
 from typing import Dict
-
-import rospkg
-
+import os
 import subprocess
 
-class UrdfGenerator:
+class UrdfGenerator():
 
-    def __init__(self, 
-            robotname: str,
+    def __init__(self, robotname: str,
+            descr_path: str, 
             name: str = "UrdfGenerator"):
-
-        self.robotname = robotname
         
+        self.robotname = robotname
         self.output_path = "/tmp/"
         self.name = name
-
-        self.descr_dump_path = self.output_path + f"{name}"
-
+        self.descr_dump_path = os.path.join(self.output_path, name)
+        self.descr_path = descr_path
         self.generated = False
-
         self.urdf_path = ""
 
     def generate_urdf(self):
-
-        rospackage = rospkg.RosPack()
-        descr_path = rospackage.get_path(self.robotname + "_urdf")
-        urdf_path = descr_path + "/urdf"
         xacro_name = self.robotname
-        xacro_path = urdf_path + "/" + xacro_name + ".urdf.xacro"
+        xacro_path = os.path.join(self.descr_path + "/urdf", f"{xacro_name}.urdf.xacro")
         
-        self.urdf_path = self.descr_dump_path + "/" + self.robotname + ".urdf"
+        self.urdf_path = os.path.join(self.descr_dump_path, f"{self.robotname}.urdf")
 
         if self._xrdf_cmds() is not None:
-            
             cmds = self._xrdf_cmds()[self.robotname]
 
             if cmds is None:
-                
-                xacro_cmd = ["xacro"] + [xacro_path] + ["-o"] + [self.urdf_path]
-
+                xacro_cmd = ["xacro", xacro_path, "-o", self.urdf_path]
             else:
-
-                xacro_cmd = ["xacro"] + [xacro_path] + cmds + ["-o"] + [self.urdf_path]
+                xacro_cmd = ["xacro", xacro_path] + cmds + ["-o", self.urdf_path]
 
         if self._xrdf_cmds() is None:
-
-            xacro_cmd = ["xacro"] + [xacro_path] + ["-o"] + [self.urdf_path]
+            xacro_cmd = ["xacro", xacro_path, "-o", self.urdf_path]
 
         try:
-
             xacro_gen = subprocess.check_call(xacro_cmd)
 
-        except:
-
-            raise Exception(f"[{self.__class__.__name__}]" + 
-                            f"[Exception]" + 
-                            ": failed to generate " + self.robotname + "\'s URDF!!!")
+        except subprocess.CalledProcessError:
+            raise Exception(f"[{self.__class__.__name__}] [Exception]: "
+                            f"failed to generate {self.robotname}'s URDF!!!")
 
         self.generated = True
 

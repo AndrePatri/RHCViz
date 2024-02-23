@@ -4,10 +4,12 @@ class RoboUrdfGen(UrdfGenerator):
 
     def __init__(self, 
             robotname: str,
+            descr_path: str,
             name: str = "RobotUrdf"):
         
         super().__init__(
             robotname = robotname,
+            descr_path = descr_path,
             name = name)
 
         self.generate_urdf() # actually generated urdf
@@ -20,11 +22,11 @@ class RoboUrdfGen(UrdfGenerator):
 
         if self.robotname == "centauro":
 
-            cmds.update(self._get_xrdf_cmds_centauro())
+            cmds.update(self._get_xrdf_cmds_centauro(root=self.descr_path))
 
         if self.robotname == "aliengo":
 
-            cmds.update(self._get_xrdf_cmds_aliengo())
+            cmds.update(self._get_xrdf_cmds_aliengo(root=self.descr_path))
 
         if self.robotname != "aliengo" and \
             self.robotname != "centauro":
@@ -33,12 +35,16 @@ class RoboUrdfGen(UrdfGenerator):
         
         return cmds
     
-    def _get_xrdf_cmds_centauro(self):
+    def _get_xrdf_cmds_centauro(self,
+                root: str):
         
         cmds = {}
         cmds_aux = []
         
         xrdf_cmd_vals = [True, True, True, False, False, False]
+
+        root_centauro = "centauro_root:=" + root
+        cmds_aux.append(root)
 
         legs = "true" if xrdf_cmd_vals[0] else "false"
         big_wheel = "true" if xrdf_cmd_vals[1] else "false"
@@ -54,11 +60,14 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux.append("realsense:=" + realsense)
         cmds_aux.append("floating_joint:=" + floating_joint)
         
+        cmds_aux.append("use_abs_mesh_paths:=true")
+
         cmds["centauro"] = cmds_aux
 
         return cmds
     
-    def _get_xrdf_cmds_aliengo(self):
+    def _get_xrdf_cmds_aliengo(self,
+                root: str):
         
         # no particular configuration needed
         
@@ -66,6 +75,11 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux = []
         
         cmds["aliengo"] = cmds_aux
+
+        aliengo_root = "aliengo_root:=" + root
+        cmds_aux.append(aliengo_root)
+        
+        cmds_aux.append("use_abs_mesh_paths:=true")
 
         return cmds
         

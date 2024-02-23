@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import subprocess
 import argparse
 import os
@@ -13,6 +14,7 @@ def main(robot_type, n_rhc_nodes):
     robot_state_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_robot_state_publisher.py'), robot_type]
 
     # Start each script as a subprocess
+    print(handshaker_cmd)
     handshaker_process = subprocess.Popen(handshaker_cmd)
     rhc_state_process = subprocess.Popen(rhc_state_pub_cmd)
     robot_state_process = subprocess.Popen(robot_state_pub_cmd)
@@ -29,4 +31,10 @@ if __name__ == '__main__':
     parser.add_argument('--n_rhc_nodes', type=int, help="Number of RHC nodes", default=10)
 
     args = parser.parse_args()
+
+    if args.robot_type is None:
+
+        raise Exception("No robot_type provided")
+
     main(args.robot_type, args.n_rhc_nodes)
+

@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-import rospy
-import random
-import subprocess
+
+import rclpy
+from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from urdf_parser_py.urdf import URDF
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
 
@@ -18,12 +17,12 @@ from std_msgs.msg import Float64MultiArray, String
 
 import numpy as np
 
+from urdf_parser_py.urdf import URDF
+
 from rhcviz.utils.namings import NamingConventions
 from rhcviz.utils.string_list_encoding import StringArray
 
-# import time
-
-class RHCViz:
+class RHCViz(Node):
 
     def __init__(self, 
             urdf_file_path: str, 
@@ -38,6 +37,14 @@ class RHCViz:
         self.syspaths = PathsGetter()
         
         self.names = NamingConventions()
+
+        rclpy.init()
+
+        super().__init__(self.names.global_ns(basename=basename,
+                                    namespace=namespace)
+                            + "RHCViz")
+        
+   
 
         self.string_list_decoder = StringArray()
 
@@ -77,7 +84,7 @@ class RHCViz:
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
-        
+    
         self.joint_names_rhc = []
         self.joint_names_acquired = False
         self.joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
@@ -91,22 +98,19 @@ class RHCViz:
                                                     namespace=self.namespace)
 
         self.rsp_processes = []
-
-        self.handshaker = RHCVizHandshake(self.handshake_topicname, 
-                                    is_server=False)
     
     def handshake(self):
         
         # Wait for handshake to complete
-        while not rospy.is_shutdown() and not self.handshaker.handshake_done():
+        while not rclpy.ok() and not self.handshaker.handshake_done():
             
-            rospy.loginfo(f"Waiting for handshake data...")
+            print("Waiting for handshake data...")
 
-            rospy.sleep(0.3)
+            rclpy.sleep(0.3)
 
         if self.handshaker.n_nodes is None:
 
-            rospy.logerr("Handshake not completed. Exiting.")
+            print("Handshake not completed. Exiting.")
 
             return
         
@@ -227,52 +231,49 @@ class RHCViz:
         """
         Initialize the subscriber to listen to joint names
         """
-        self.jnt_names_subscriber = rospy.Subscriber(topic_name, 
-            String, 
-            self.jnt_names_callback)
+        self.jnt_names_subscriber = self.create_subscription(
+            String, topic_name, self.jnt_names_callback, 10)
         
     def initialize_rhc_subscriber(self, 
                         topic_name: str):
         """
         Initialize the subscriber to listen to the rhc state data.
         """
-        self.rhc_state_subscriber = rospy.Subscriber(topic_name, 
-            Float64MultiArray, 
-            self.rhc_state_callback)
+        self.rhc_state_subscriber = self.create_subscription(
+            Float64MultiArray, topic_name, self.rhc_state_callback, 10)
 
     def initialize_robot_state_subscriber(self, 
                         topic_name: str):
         """
         Initialize the subscriber to listen to robot state data.
         """
-        self.robot_state_subscriber = rospy.Subscriber(topic_name, 
-            Float64MultiArray, 
-            self.robot_state_callback)
+        self.robot_state_subscriber = self.create_subscription(
+            Float64MultiArray, topic_name, self.robot_state_callback, 10)
     
-    def jnt_names_callback(self, data):
+    def jnt_names_callback(self, msg):
         
         if not self.joint_names_acquired:
 
-            self.joint_names_rhc = self.string_list_decoder.decode(data.data) 
+            self.joint_names_rhc = self.string_list_decoder.decode(msg.data) 
             
             self.joint_names_acquired = True
 
-    def rhc_state_callback(self, data):
+    def rhc_state_callback(self, msg):
         """
         Callback function for processing incoming RHC state data.
         """
         # Convert data to numpy array and reshape
-        matrix = np.array(data.data).reshape((-1, self.n_rhc_nodes))
+        matrix = np.array(msg.data).reshape((-1, self.n_rhc_nodes))
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
         expected_joints = len(self.joint_names)
         if (n_rows - 7) != expected_joints:
-            rospy.logerr(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
+            print(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
             return
         if n_cols != self.n_rhc_nodes:
-            rospy.logerr(f"rhc_state_callback: Number available rhc nodes in the message {n_cols} " + \
+            print(f"rhc_state_callback: Number available rhc nodes in the message {n_cols} " + \
                     f"does not match {self.n_rhc_nodes}, which is the expected one.")
             return
         
@@ -286,23 +287,23 @@ class RHCViz:
             # Publish base pose and joint positions for this node
             self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
     
-    def robot_state_callback(self, data):
+    def robot_state_callback(self, msg):
         """
         Callback function for processing incoming robot state data.
         """
         # Convert data to numpy array and reshape
-        matrix = np.array(data.data).reshape((-1, 1))
+        matrix = np.array(msg.data).reshape((-1, 1))
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
         expected_joints = len(self.joint_names)
         if (n_rows - 7) != expected_joints:
-            rospy.logerr(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
+            print(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
             return
         if n_cols != 1:
-            rospy.logerr(f"robot_state_callback: received a robot state matrix with n. cols {n_cols}. " + \
-                    f"But the expeted n. cols is {1}")
+            print(f"robot_state_callback: received a robot state matrix with n. cols {n_cols}. " + \
+                    f"But the expected n. cols is {1}")
             return
         
         base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)
@@ -317,7 +318,7 @@ class RHCViz:
         """
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp = rospy.Time.now()
+        transform.header.stamp = self.get_clock().now().to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.nodes_tf_prefixes[node_index]}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -332,7 +333,7 @@ class RHCViz:
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = rospy.Time.now()
+        joint_state.header.stamp = self.get_clock().now().to_msg()
         joint_state.name = self.joint_names_rhc
         joint_state.position = joint_positions
 
@@ -344,7 +345,7 @@ class RHCViz:
         """
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp = rospy.Time.now()
+        transform.header.stamp = self.get_clock().now().to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -359,7 +360,7 @@ class RHCViz:
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = rospy.Time.now()
+        joint_state.header.stamp = self.get_clock().now().to_msg()
         joint_state.name = self.joint_names_rhc
         joint_state.position = joint_positions
 
@@ -380,10 +381,11 @@ class RHCViz:
 
         # Set the robot description for each namespace
         full_param_name = '/{}/robot_description'.format(robot_ns)
-        rospy.set_param(full_param_name, urdf)
+        self.declare_parameter(full_param_name, urdf)
 
         rsp_command = [
-            'rosrun', 'robot_state_publisher', 'robot_state_publisher',
+            'ros2', 'run', 'robot_state_publisher', 'robot_state_publisher',
+            '--ros-args', '--params', full_param_name,
             '__ns:=' + robot_ns,
             '_tf_prefix:=' + robot_ns
         ]
@@ -397,7 +399,7 @@ class RHCViz:
         """
         updated_config_path = self.update_rviz_config()
         taskset_command = self.get_taskset_command()
-        rviz_command = ['rviz', '-d', updated_config_path]
+        rviz_command = ['rviz2', '-d', updated_config_path]
         full_command = taskset_command + rviz_command
         return subprocess.Popen(full_command)
     
@@ -407,8 +409,12 @@ class RHCViz:
 
     def run(self):
 
-        rospy.init_node('RHCViz', anonymous=True)
-        rate = rospy.Rate(self.rate) 
+        self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
+                                    name=self.names.global_ns(basename=self.basename,
+                                                    namespace=self.namespace) + "RHCViz",
+                                    is_server=False)
+
+        rate = self.create_rate(self.rate) 
 
         self.handshake() # blocks, waits for handshake data to be available
 
@@ -416,22 +422,22 @@ class RHCViz:
 
         robot_description = self.read_urdf_file(self.urdf_file_path)
         # Set the robot description for each namespace
-        rospy.set_param(self.robot_description_name, robot_description)
+        self.declare_parameter(self.robot_description_name, robot_description)
 
         # subscribers to joint names
         self.initialize_joint_names_subscriber(topic_name=self.joint_names_topicname)
         while not self.joint_names_acquired:
             
-            rospy.loginfo(f"Waiting for joint names data from RHC controller...")
+            print("Waiting for joint names data from RHC controller...")
 
-            rospy.sleep(0.5)
+            rclpy.spin_once(self)
 
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
 
         if not self.check_jnt_names_consistency():
 
-            rospy.logerr("Not all joints in the parsed URDF where found in the RHC list, or viceversa.")
+            print("Not all joints in the parsed URDF where found in the RHC list, or vice versa.")
 
             return 
 
@@ -448,18 +454,18 @@ class RHCViz:
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.publishers = {}
         for ns in self.nodes_ns:
-            self.publishers[ns] = rospy.Publisher(f'/{ns}/joint_states', JointState, queue_size=10)
-        # Pubilisher for robot state
-        self.publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
+            self.publishers[ns] = self.create_publisher(JointState, f'/{ns}/joint_states', 10)
+        # Publisher for robot state
+        self.publishers[self.state_ns] = self.create_publisher(JointState, '/{}/joint_states'.format(self.state_ns), 10)
         
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
 
         # give some time for the robot_state_publishers to start
-        rospy.sleep(3)
+        rclpy.spin_once(self, timeout_sec=3)
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             
             rate.sleep()
 
@@ -485,3 +491,4 @@ if __name__ == '__main__':
            basename="RHCViz_test")
     
     rhcviz.run()
+    rclpy.shutdown()

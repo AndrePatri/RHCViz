@@ -1,55 +1,83 @@
 #!/usr/bin/env python
-import rospy
-import random
+
 import argparse
+import rclpy
+from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
 from rhcviz.utils.namings import NamingConventions
 
-def publish_robot_state(robot_type):
-    rospy.init_node('robot_state_publisher')
+from perf_sleep.pyperfsleep import PerfSleep
 
-    names = NamingConventions()
-    
-    topic_name = names.robot_q_topicname(basename = "RHCViz_test", 
+class RobotStatePublisher():
+
+    def __init__(self, robot_type):
+
+        self.perf_timer = PerfSleep()
+
+        self.names = NamingConventions()
+        self.basename = "RHCViz_test"
+
+        name = self.names.global_ns(basename=self.basename, namespace=robot_type) + "RHCPublisher"
+
+        self.node = rclpy.create_node(name)
+
+        self.topic_name = self.names.robot_q_topicname(basename=self.basename, 
                                 namespace=robot_type)
+        self.publisher = self.node.create_publisher(Float64MultiArray, 
+                            self.topic_name, 
+                            10)
+        
+        self.sleep_dt = 0.1  # s
+        # self.rate = self.create_rate(self.rate_value)
 
-    pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)
-    
-    rate_value = 1 # Hz
-    rate = rospy.Rate(rate_value)
+        # Set number of joints based on robot type
+        if robot_type == "aliengo":
+            self.n_joints = 12
+        elif robot_type == "centauro":
+            self.n_joints = 39
 
-    # Set number of joints based on robot type
-    if robot_type == "aliengo":
-        n_joints = 12
-    elif robot_type == "centauro":
-        n_joints = 39
+    def publish_robot_state(self):
 
-    while not rospy.is_shutdown():
-        # Create a matrix with null base pose and random joint positions
-        base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
-        base_pose[6] = 1  # Ensure valid quaternion
-        joint_positions = np.random.uniform(-3.14, 3.14, (n_joints, 1))
-        matrix = np.vstack((np.tile(base_pose, (1, 1)).T, joint_positions))
+        while rclpy.ok():
+            
+            # Create a matrix with null base pose and random joint positions
+            base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
+            base_pose[6] = 1  # Ensure valid quaternion
+            joint_positions = np.random.uniform(-3.14, 3.14, (self.n_joints, 1))
+            matrix = np.vstack((np.tile(base_pose, (1, 1)).T, joint_positions))
 
-        # Publish the matrix
-        msg = Float64MultiArray(data=matrix.flatten())
-        pub.publish(msg)
+            # Publish the matrix
+            msg = Float64MultiArray(data=matrix.flatten())
 
-        rate.sleep()
+            self.publisher.publish(msg)
 
-if __name__ == '__main__':
-    
+            self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+
+def main(args=None):
+
+    rclpy.init(args=args)
+
     parser = argparse.ArgumentParser(description="Robot State Publisher")
-
-    parser.add_argument('robot_type', 
-                    choices=['aliengo', 'centauro'], 
-                    help="Type of the robot ('aliengo' or 'centauro')")
-    
+    parser.add_argument('robot_type', choices=['aliengo', 'centauro'], help="Type of the robot ('aliengo' or 'centauro')")
     args = parser.parse_args()
 
+    robot_state_publisher = RobotStatePublisher(args.robot_type)
+
     try:
-        publish_robot_state(args.robot_type)
-    except rospy.ROSInterruptException:
+
+        robot_state_publisher.publish_robot_state()
+
+    except KeyboardInterrupt:
+
         pass
+
+    finally:
+
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+
+    main()
+

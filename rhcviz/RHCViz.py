@@ -412,10 +412,14 @@ class RHCViz():
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = now.to_msg()
-        joint_state.name = self.joint_names_rhc
+        if self._check_jnt_names:
+            joint_state.name = self.joint_names_rhc
+        else:
+            # we use the one parsed from the urdf (dangerous)
+            joint_state.name = self.joint_names
         joint_state.position = joint_positions.flatten().tolist()
 
-        # self.publishers[self.state_ns].publish(joint_state)
+        self.publishers[self.state_ns].publish(joint_state)
 
     def start_robot_state_publisher(self, urdf, robot_ns, node_index):
         """
@@ -438,8 +442,9 @@ class RHCViz():
             'ros2', 'run', 'robot_state_publisher', 'robot_state_publisher',
             '--ros-args',
             '-r', f'__ns:=/{robot_ns}',
+            # '-r', f'/tf:=/{robot_ns}/tf',
             '-p', f'robot_description:={urdf}',
-            '-p', f'frame_prefix:={robot_ns}',
+            '-p', f'frame_prefix:={robot_ns}/',
             # /RHCViz_test_aliengo_rhc_node0/joint_states
             # '--param', f'robot_state_publisher:__ns:=/aAAAAAAAAAAAAAa',
             # '-p', f'robot_state_publisher:prefix:=Pippo',

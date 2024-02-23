@@ -48,7 +48,7 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="RHC State Publisher")
-    parser.add_argument('n_rhc_nodes', type=int, help="Number of RHC nodes")
+    parser.add_argument('n_rhc_nodes', type=int, help="Number of RHC nodes", default=2)
     parser.add_argument('robot_type', choices=['aliengo', 'centauro'], help="Type of the robot ('aliengo' or 'centauro')")
 
     args = parser.parse_args()

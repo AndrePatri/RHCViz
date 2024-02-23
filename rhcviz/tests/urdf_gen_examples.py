@@ -40,11 +40,12 @@ class RoboUrdfGen(UrdfGenerator):
         
         cmds = {}
         cmds_aux = []
-        
+        cmds["centauro"] = cmds_aux
+
         xrdf_cmd_vals = [True, True, True, False, False, False]
 
         root_centauro = "centauro_root:=" + root
-        cmds_aux.append(root)
+        cmds_aux.append(root_centauro)
 
         legs = "true" if xrdf_cmd_vals[0] else "false"
         big_wheel = "true" if xrdf_cmd_vals[1] else "false"
@@ -63,7 +64,7 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux.append("use_abs_mesh_paths:=true")
         cmds_aux.append("use_local_filesys_for_meshes:=true")
 
-        cmds["centauro"] = cmds_aux
+        
 
         return cmds
     

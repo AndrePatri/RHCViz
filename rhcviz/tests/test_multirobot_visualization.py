@@ -29,7 +29,7 @@ if __name__ == '__main__':
            rviz_config_path=args.rviz_config,
            namespace=args.robot_type, 
            basename="RHCViz_test", 
-           rate = 10,
+           rate = 100,
            cpu_cores = [14, 15],
            use_only_collisions=False,
            check_jnt_names = False, # just to avoid manual publishing of joints (normaly should be set to true)       

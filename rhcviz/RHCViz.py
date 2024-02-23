@@ -39,7 +39,6 @@ class RHCViz():
             check_jnt_names = True,
             nodes_perc: int = 100):
         
-        
         self.perf_timer = PerfSleep()
         self.sleep_dt = 1/rate
 
@@ -361,8 +360,9 @@ class RHCViz():
         Publish rhc state to rviz
         """
         # Publish base pose
+        now = self.node.get_clock().now()
         transform = TransformStamped()
-        transform.header.stamp = self.node.get_clock().now().to_msg()
+        transform.header.stamp = now.to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.nodes_tf_prefixes[node_index]}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -377,7 +377,7 @@ class RHCViz():
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = self.node.get_clock().now().to_msg()
+        joint_state.header.stamp = now.to_msg()
         
         if self._check_jnt_names:
             joint_state.name = self.joint_names_rhc
@@ -393,9 +393,10 @@ class RHCViz():
         """
         Publish robot state to rviz
         """
+        now = self.node.get_clock().now()
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp = self.node.get_clock().now().to_msg()
+        transform.header.stamp = now.to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -410,11 +411,11 @@ class RHCViz():
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = self.node.get_clock().now().to_msg()
+        joint_state.header.stamp = now.to_msg()
         joint_state.name = self.joint_names_rhc
-        joint_state.position = joint_positions.tolist()
+        joint_state.position = joint_positions.flatten().tolist()
 
-        self.publishers[self.state_ns].publish(joint_state)
+        # self.publishers[self.state_ns].publish(joint_state)
 
     def start_robot_state_publisher(self, urdf, robot_ns, node_index):
         """
@@ -511,7 +512,8 @@ class RHCViz():
         for ns in self.nodes_ns:
             self.publishers[ns] = self.node.create_publisher(JointState, f'/{ns}/joint_states', 10)
         # Publisher for robot state
-        self.publishers[self.state_ns] = self.node.create_publisher(JointState, '/{}/joint_states'.format(self.state_ns), 10)
+        self.publishers[self.state_ns] = self.node.create_publisher(JointState, 
+                                            '/{}/joint_states'.format(self.state_ns), 10)
         
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)

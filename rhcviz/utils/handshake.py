@@ -57,6 +57,7 @@ class RHCVizHandshake():
             msg.data = [float(self.n_nodes)]
 
             self.publisher.publish(msg)
+            
         else:
             self.get_logger().warn("set_n_nodes called on a non-server instance of RHCVizHandshake.")
 

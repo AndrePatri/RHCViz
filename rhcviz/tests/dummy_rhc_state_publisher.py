@@ -3,6 +3,8 @@
 import argparse
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import ReliabilityPolicy, DurabilityPolicy, HistoryPolicy, LivelinessPolicy
+from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
@@ -32,9 +34,18 @@ class RHCPublisher():
                             handshake_topic=self.handshake_topicname, 
                             is_server=False)
 
+        self._qos_settings = QoSProfile(
+                reliability=ReliabilityPolicy.RELIABLE, # BEST_EFFORT
+                durability=DurabilityPolicy.TRANSIENT_LOCAL, # VOLATILE
+                history=HistoryPolicy.KEEP_LAST, # KEEP_ALL
+                depth=10,  # Number of samples to keep if KEEP_LAST is used
+                liveliness=LivelinessPolicy.AUTOMATIC,
+                # deadline=1000000000,  # [ns]
+                # partition='my_partition' # useful to isolate communications
+                )
         self.publisher = self.node.create_publisher(Float64MultiArray, 
                         self.topic_name, 
-                        10)
+                        qos_profile=self._qos_settings)
         self.sleep_dt = 0.1  # s
         # self.rate = self.create_rate(self.rate_value)
 
@@ -87,7 +98,7 @@ class RHCPublisher():
             msg = Float64MultiArray(data=matrix.flatten())
 
             self.publisher.publish(msg)
-            rclpy.spin_once(self.node)
+            # rclpy.spin_once(self.node)
             self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
 def main(args=None):

@@ -36,7 +36,7 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
             # Set and publish the handshake information
             handshake.set_n_nodes(n_rhc_nodes)
 
-            node.get_logger().info(f"Publishing handshake data: n_robots = {n_rhc_nodes}")
+            # node.get_logger().info(f"Publishing handshake data: n_robots = {n_rhc_nodes}")
 
             # Sleep for the rate duration
             perf_timer.thread_sleep(int((sleep_dt) * 1e+9)) 

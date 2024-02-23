@@ -191,28 +191,61 @@ class RHCViz():
             alpha_value = alpha_value_start * math.exp(-alpha_decay_rate * i)
 
             rhcnode_config = {
-                'Class': 'rviz/RobotModel',
+                'Class': 'rviz_default_plugins/RobotModel',
                 'Name': 'RHCNode{}'.format(self.rhc_indeces[i]),
                 'Enabled': True,
                 'Visual Enabled': False if self.use_only_collisions else True,
                 'Collision Enabled': True if self.use_only_collisions else False,
-                'Robot Description': f'{self.robot_description_name}',
+                'Description Source': 'Topic',
+                'Description Topic': {'Depth': 5,
+                                    'Durability Policy': 'Volatile',
+                                    'History Policy': 'Keep Last',
+                                    'Reliability Policy': 'Reliable',
+                                    'Value': f"{self.nodes_ns[i]}/robot_description"},
                 'TF Prefix': f'{self.nodes_tf_prefixes[self.rhc_indeces[i]]}',
-                'Alpha': alpha_value
+                'Alpha': alpha_value,
+                'Update Interval': 0,
+                'Links': {
+                    'All Links Enabled': True,
+                    'Expand Joint Details': False,
+                    'Expand Link Details': False,
+                    'Expand Tree': False,
+                    'Link Tree Style': ""},
+                'Mass Properties': {
+                    'Inertia': False,
+                    'Mass': False}
             }
             config['Visualization Manager']['Displays'].append(rhcnode_config)
 
         # add a robot model for the true robot state
         # (either coming from the simulator or the real robot)
+
         robotstate_config = {
-            'Class': 'rviz/RobotModel',
-            'Name': 'RobotState',
-            'Enabled': True,
-            'Visual Enabled': False,
-            'Collision Enabled': True, # to better distinguish the state from the nodes
-            'Robot Description': f'{self.robot_description_name}',
-            'TF Prefix': f'{self.state_tf_prefix}'
-        }
+                'Class': 'rviz_default_plugins/RobotModel',
+                'Name': 'RobotState',
+                'Enabled': True,
+                'Visual Enabled': False if self.use_only_collisions else True,
+                'Collision Enabled': True if self.use_only_collisions else False,
+                'Description Source': 'Topic',
+                'Description Topic': {'Depth': 5,
+                                    'Durability Policy': 'Volatile',
+                                    'History Policy': 'Keep Last',
+                                    'Reliability Policy': 'Reliable',
+                                    'Value': f"{self.state_ns}/robot_description"},
+                'TF Prefix': f'{self.state_tf_prefix}',
+                'Alpha': alpha_value,
+                'Update Interval': 0,
+                'Links': {
+                    'All Links Enabled': True,
+                    'Expand Joint Details': False,
+                    'Expand Link Details': False,
+                    'Expand Tree': False,
+                    'Link Tree Style': ""},
+                'Mass Properties': {
+                    'Inertia': False,
+                    'Mass': False}
+            }
+
         config['Visualization Manager']['Displays'].append(robotstate_config)
 
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
@@ -272,6 +305,7 @@ class RHCViz():
         """
         Callback function for processing incoming RHC state data.
         """
+
         # Convert data to numpy array and reshape
         matrix = np.array(msg.data).reshape((-1, self.n_rhc_nodes))
         n_rows, n_cols = matrix.shape
@@ -328,7 +362,7 @@ class RHCViz():
         """
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp = self.get_clock().now().to_msg()
+        transform.header.stamp = self.node.get_clock().now().to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.nodes_tf_prefixes[node_index]}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -343,7 +377,7 @@ class RHCViz():
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = self.get_clock().now().to_msg()
+        joint_state.header.stamp = self.node.get_clock().now().to_msg()
         
         if self._check_jnt_names:
             joint_state.name = self.joint_names_rhc
@@ -351,7 +385,7 @@ class RHCViz():
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names
 
-        joint_state.position = joint_positions
+        joint_state.position = joint_positions.tolist()
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
 
@@ -361,7 +395,7 @@ class RHCViz():
         """
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp = self.get_clock().now().to_msg()
+        transform.header.stamp = self.node.get_clock().now().to_msg()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -376,9 +410,9 @@ class RHCViz():
 
         # Publish joint positions
         joint_state = JointState()
-        joint_state.header.stamp = self.get_clock().now().to_msg()
+        joint_state.header.stamp = self.node.get_clock().now().to_msg()
         joint_state.name = self.joint_names_rhc
-        joint_state.position = joint_positions
+        joint_state.position = joint_positions.tolist()
 
         self.publishers[self.state_ns].publish(joint_state)
 
@@ -397,13 +431,19 @@ class RHCViz():
 
         # Set the robot description for each namespace
         full_param_name = '/{}/robot_description'.format(robot_ns)
-        self.declare_parameter(full_param_name, urdf)
-
+        self.node.declare_parameter(full_param_name, urdf)
+        
         rsp_command = [
             'ros2', 'run', 'robot_state_publisher', 'robot_state_publisher',
-            '--ros-args', '--params', full_param_name,
-            '__ns:=' + robot_ns,
-            '_tf_prefix:=' + robot_ns
+            '--ros-args',
+            '-r', f'__ns:=/{robot_ns}',
+            '-p', f'robot_description:={urdf}',
+            '-p', f'frame_prefix:={robot_ns}',
+            # /RHCViz_test_aliengo_rhc_node0/joint_states
+            # '--param', f'robot_state_publisher:__ns:=/aAAAAAAAAAAAAAa',
+            # '-p', f'robot_state_publisher:prefix:=Pippo',
+            # '__ns:=' + robot_ns,
+            # '_tf_prefix:=' + robot_ns
         ]
         full_command = taskset_command + rsp_command
         rsp_process = subprocess.Popen(full_command)
@@ -430,8 +470,6 @@ class RHCViz():
                                                     namespace=self.namespace) + "RHCViz",
                                     is_server=False,
                                     node=self.node)
-
-        
 
         self.handshake() # blocks, waits for handshake data to be available
 
@@ -468,7 +506,7 @@ class RHCViz():
             self.rsp_processes.append(self.start_robot_state_publisher(robot_description, node_ns, i))
 
         # Publishers for RHC nodes
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self.node)
         self.publishers = {}
         for ns in self.nodes_ns:
             self.publishers[ns] = self.node.create_publisher(JointState, f'/{ns}/joint_states', 10)
@@ -480,11 +518,13 @@ class RHCViz():
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
 
         # give some time for the robot_state_publishers to start
-        rclpy.spin_once(self, timeout_sec=3)
+        rclpy.spin_once(self.node, timeout_sec=3)
 
         while rclpy.ok():
             
-            self.rate.sleep()
+            rclpy.spin_once(self.node)
+
+            self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
         rviz_process.terminate()
 

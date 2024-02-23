@@ -61,6 +61,7 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux.append("floating_joint:=" + floating_joint)
         
         cmds_aux.append("use_abs_mesh_paths:=true")
+        cmds_aux.append("use_local_filesys_for_meshes:=true")
 
         cmds["centauro"] = cmds_aux
 
@@ -80,6 +81,7 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux.append(aliengo_root)
         
         cmds_aux.append("use_abs_mesh_paths:=true")
+        cmds_aux.append("use_local_filesys_for_meshes:=true")
 
         return cmds
         

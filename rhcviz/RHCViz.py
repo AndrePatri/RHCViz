@@ -22,7 +22,11 @@ from urdf_parser_py.urdf import URDF
 from rhcviz.utils.namings import NamingConventions
 from rhcviz.utils.string_list_encoding import StringArray
 
-class RHCViz(Node):
+from perf_sleep.pyperfsleep import PerfSleep
+
+import subprocess
+
+class RHCViz():
 
     def __init__(self, 
             urdf_file_path: str, 
@@ -32,7 +36,14 @@ class RHCViz(Node):
             rate: float = 100,
             cpu_cores: list = None, 
             use_only_collisions = False, 
+            check_jnt_names = True,
             nodes_perc: int = 100):
+        
+        
+        self.perf_timer = PerfSleep()
+        self.sleep_dt = 1/rate
+
+        self._check_jnt_names = check_jnt_names
         
         self.syspaths = PathsGetter()
         
@@ -40,11 +51,10 @@ class RHCViz(Node):
 
         rclpy.init()
 
-        super().__init__(self.names.global_ns(basename=basename,
+        self.node = rclpy.create_node(self.names.global_ns(basename=basename,
                                     namespace=namespace)
                             + "RHCViz")
-        
-   
+        self.rate = self.node.create_rate(rate) 
 
         self.string_list_decoder = StringArray()
 
@@ -58,8 +68,6 @@ class RHCViz(Node):
         self.cpu_cores = cpu_cores
 
         self.baselink_name = "base_link"
-
-        self.rate = rate
 
         self.n_rhc_nodes = -1
         self.rhc_indeces = [] # might be a subset of [0, ..., self.n_rhc_nodes - 1]
@@ -102,11 +110,13 @@ class RHCViz(Node):
     def handshake(self):
         
         # Wait for handshake to complete
-        while not rclpy.ok() and not self.handshaker.handshake_done():
+        while rclpy.ok() and not self.handshaker.handshake_done():
             
             print("Waiting for handshake data...")
 
-            rclpy.sleep(0.3)
+            rclpy.spin_once(self.node)
+
+            self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
         if self.handshaker.n_nodes is None:
 
@@ -231,7 +241,7 @@ class RHCViz(Node):
         """
         Initialize the subscriber to listen to joint names
         """
-        self.jnt_names_subscriber = self.create_subscription(
+        self.jnt_names_subscriber = self.node.create_subscription(
             String, topic_name, self.jnt_names_callback, 10)
         
     def initialize_rhc_subscriber(self, 
@@ -239,7 +249,7 @@ class RHCViz(Node):
         """
         Initialize the subscriber to listen to the rhc state data.
         """
-        self.rhc_state_subscriber = self.create_subscription(
+        self.rhc_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.rhc_state_callback, 10)
 
     def initialize_robot_state_subscriber(self, 
@@ -247,7 +257,7 @@ class RHCViz(Node):
         """
         Initialize the subscriber to listen to robot state data.
         """
-        self.robot_state_subscriber = self.create_subscription(
+        self.robot_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.robot_state_callback, 10)
     
     def jnt_names_callback(self, msg):
@@ -334,7 +344,13 @@ class RHCViz(Node):
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = self.get_clock().now().to_msg()
-        joint_state.name = self.joint_names_rhc
+        
+        if self._check_jnt_names:
+            joint_state.name = self.joint_names_rhc
+        else:
+            # we use the one parsed from the urdf (dangerous)
+            joint_state.name = self.joint_names
+
         joint_state.position = joint_positions
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
@@ -412,9 +428,10 @@ class RHCViz(Node):
         self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
                                     name=self.names.global_ns(basename=self.basename,
                                                     namespace=self.namespace) + "RHCViz",
-                                    is_server=False)
+                                    is_server=False,
+                                    node=self.node)
 
-        rate = self.create_rate(self.rate) 
+        
 
         self.handshake() # blocks, waits for handshake data to be available
 
@@ -422,20 +439,20 @@ class RHCViz(Node):
 
         robot_description = self.read_urdf_file(self.urdf_file_path)
         # Set the robot description for each namespace
-        self.declare_parameter(self.robot_description_name, robot_description)
+        self.node.declare_parameter(self.robot_description_name, robot_description)
 
         # subscribers to joint names
         self.initialize_joint_names_subscriber(topic_name=self.joint_names_topicname)
-        while not self.joint_names_acquired:
+        while not self.joint_names_acquired and self._check_jnt_names:
             
             print("Waiting for joint names data from RHC controller...")
 
-            rclpy.spin_once(self)
+            rclpy.spin_once(self.node)
 
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
 
-        if not self.check_jnt_names_consistency():
+        if not self.check_jnt_names_consistency() and self._check_jnt_names:
 
             print("Not all joints in the parsed URDF where found in the RHC list, or vice versa.")
 
@@ -454,9 +471,9 @@ class RHCViz(Node):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.publishers = {}
         for ns in self.nodes_ns:
-            self.publishers[ns] = self.create_publisher(JointState, f'/{ns}/joint_states', 10)
+            self.publishers[ns] = self.node.create_publisher(JointState, f'/{ns}/joint_states', 10)
         # Publisher for robot state
-        self.publishers[self.state_ns] = self.create_publisher(JointState, '/{}/joint_states'.format(self.state_ns), 10)
+        self.publishers[self.state_ns] = self.node.create_publisher(JointState, '/{}/joint_states'.format(self.state_ns), 10)
         
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
@@ -467,7 +484,7 @@ class RHCViz(Node):
 
         while rclpy.ok():
             
-            rate.sleep()
+            self.rate.sleep()
 
         rviz_process.terminate()
 

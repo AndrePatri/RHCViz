@@ -46,7 +46,7 @@ class RHCVizHandshake():
                 qos_profile=self._qos_settings)
 
     def handshake_callback(self, msg):
-
+        
         self.n_nodes = int(msg.data[self.PARAM_INDEX_N_ROBOTS])
 
     def set_n_nodes(self, n_nodes):
@@ -70,6 +70,7 @@ class RHCVizHandshake():
         """
         if self.is_server:
             raise RuntimeError("handshake_done method should not be called in server mode.")
+        
         return self.n_nodes is not None
 
 

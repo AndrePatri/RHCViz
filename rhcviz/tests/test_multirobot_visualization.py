@@ -31,7 +31,8 @@ if __name__ == '__main__':
            basename="RHCViz_test", 
            rate = 10,
            cpu_cores = [14, 15],
-           use_only_collisions=False         
+           use_only_collisions=False,
+           check_jnt_names = False, # just to avoid manual publishing of joints (normaly should be set to true)       
            )
     
     rhcviz.run()

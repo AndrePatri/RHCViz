@@ -85,10 +85,9 @@ class RHCPublisher():
 
             # Publish the matrix
             msg = Float64MultiArray(data=matrix.flatten())
+
             self.publisher.publish(msg)
-
             rclpy.spin_once(self.node)
-
             self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
 def main(args=None):

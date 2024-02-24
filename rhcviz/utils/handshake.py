@@ -9,7 +9,6 @@ class RHCVizHandshake():
     PARAM_INDEX_N_ROBOTS = 0  # Index for the number of robots
 
     def __init__(self, 
-            name: str,
             node: rclpy.node.Node,
             handshake_topic: str, 
             is_server=False):

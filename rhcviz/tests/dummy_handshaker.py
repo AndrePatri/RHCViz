@@ -27,7 +27,6 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
 
     handshake = RHCVizHandshake(handshake_topic=handshake_topicname, 
                             node=node,
-                            name=names.global_ns(basename=basename, namespace=robot_type) + "DummyHandshaker",
                             is_server=True)
 
     try:

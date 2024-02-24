@@ -29,8 +29,7 @@ class RHCPublisher():
         self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, namespace=robot_type)
         self.topic_name = self.names.rhc_q_topicname(basename=self.basename, namespace=robot_type)
 
-        self.handshaker = RHCVizHandshake(name=name,
-                            node = self.node,
+        self.handshaker = RHCVizHandshake(node = self.node,
                             handshake_topic=self.handshake_topicname, 
                             is_server=False)
 

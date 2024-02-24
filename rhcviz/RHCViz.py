@@ -472,8 +472,6 @@ class RHCViz():
     def run(self):
 
         self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
-                                    name=self.names.global_ns(basename=self.basename,
-                                                    namespace=self.namespace) + "RHCViz",
                                     is_server=False,
                                     node=self.node)
 

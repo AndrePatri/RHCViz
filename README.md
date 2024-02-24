@@ -8,6 +8,7 @@ Dependencies:
 - [pyyaml](https://pypi.org/project/PyYAML/)
 - [numpy](https://pypi.org/project/numpy/)
 - [urdf_parser_py](https://pypi.org/project/urdf-parser-py/)
+- [PerfSleep](https://github.com/AndrePatri/PerfSleep)
 
 - The tests run on two example robot description packages:
     - [Aliengo1](https://github.com/AndrePatri/unitree_ros/tree/ros2)

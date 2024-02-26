@@ -2,14 +2,15 @@ from abc import abstractmethod
 
 from typing import Dict
 
-import rospkg
-
 import subprocess
 
+import os
+    
 class UrdfGenerator:
 
     def __init__(self, 
             robotname: str,
+            descr_path: str, 
             name: str = "UrdfGenerator"):
 
         self.robotname = robotname
@@ -18,6 +19,7 @@ class UrdfGenerator:
         self.name = name
 
         self.descr_dump_path = self.output_path + f"{name}"
+        self.descr_path = descr_path
 
         self.generated = False
 
@@ -25,11 +27,8 @@ class UrdfGenerator:
 
     def generate_urdf(self):
 
-        rospackage = rospkg.RosPack()
-        descr_path = rospackage.get_path(self.robotname + "_urdf")
-        urdf_path = descr_path + "/urdf"
         xacro_name = self.robotname
-        xacro_path = urdf_path + "/" + xacro_name + ".urdf.xacro"
+        xacro_path = os.path.join(self.descr_path + "/urdf", f"{xacro_name}.urdf.xacro")
         
         self.urdf_path = self.descr_dump_path + "/" + self.robotname + ".urdf"
 

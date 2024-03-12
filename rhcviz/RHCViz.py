@@ -236,7 +236,7 @@ class RHCViz():
                                     'Reliability Policy': 'Reliable',
                                     'Value': f"{self.state_ns}/robot_description"},
                 'TF Prefix': f'{self.state_tf_prefix}',
-                'Alpha': alpha_value,
+                'Alpha': 1.0,
                 'Update Interval': 0,
                 'Links': {
                     'All Links Enabled': True,

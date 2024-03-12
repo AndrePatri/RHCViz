@@ -39,7 +39,6 @@ class RHCViz():
             check_jnt_names = True,
             nodes_perc: int = 100):
         
-        self.perf_timer = PerfSleep()
         self.sleep_dt = 1/rate
 
         self._check_jnt_names = check_jnt_names
@@ -77,7 +76,8 @@ class RHCViz():
         
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
-        self.jnt_names_subscriber = None
+        self.robot_jnt_names_subscriber = None
+        self.rhc_jnt_names_subscriber = None
 
         # description for all
         self.nodes_tf_prefixes = []
@@ -90,11 +90,15 @@ class RHCViz():
         self.urdf_file_path = urdf_file_path
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
-        self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
+        self.joint_names_urdf, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
     
         self.joint_names_rhc = []
-        self.joint_names_acquired = False
-        self.joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
+        self.joint_names_robot = []
+        self.robot_joint_names_acquired = False
+        self.rhc_joint_names_acquired = False
+        self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.rhc_joint_names_topicname = self.names.rhc_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
         self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
@@ -115,7 +119,7 @@ class RHCViz():
 
             rclpy.spin_once(self.node)
 
-            self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
         if self.handshaker.n_nodes is None:
 
@@ -268,13 +272,17 @@ class RHCViz():
 
         return joint_names, state_dimensions
 
-    def initialize_joint_names_subscriber(self, 
-                        topic_name: str):
+    def initialize_joint_names_subscribers(self, 
+                        robot_topic_name: str,
+                        rhc_topic_name: str):
         """
-        Initialize the subscriber to listen to joint names
+        Initialize subscribers to listen to joint names
         """
-        self.jnt_names_subscriber = self.node.create_subscription(
-            String, topic_name, self.jnt_names_callback, 10)
+        self.robot_jnt_names_subscriber = self.node.create_subscription(
+            String, robot_topic_name, self.robot_jnt_names_callback, 10)
+        
+        self.rhc_jnt_names_subscriber = self.node.create_subscription(
+            String, rhc_topic_name, self.rhc_jnt_names_callback, 10)
         
     def initialize_rhc_subscriber(self, 
                         topic_name: str):
@@ -292,13 +300,21 @@ class RHCViz():
         self.robot_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.robot_state_callback, 10)
     
-    def jnt_names_callback(self, msg):
+    def robot_jnt_names_callback(self, msg):
         
-        if not self.joint_names_acquired:
+        if not self.robot_joint_names_acquired:
+
+            self.joint_names_robot = self.string_list_decoder.decode(msg.data) 
+            
+            self.robot_joint_names_acquired = True
+    
+    def rhc_jnt_names_callback(self, msg):
+        
+        if not self.rhc_joint_names_acquired:
 
             self.joint_names_rhc = self.string_list_decoder.decode(msg.data) 
             
-            self.joint_names_acquired = True
+            self.rhc_joint_names_acquired = True
 
     def rhc_state_callback(self, msg):
         """
@@ -310,7 +326,7 @@ class RHCViz():
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
-        expected_joints = len(self.joint_names)
+        expected_joints = len(self.joint_names_urdf)
         if (n_rows - 7) != expected_joints:
             print(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
@@ -339,7 +355,7 @@ class RHCViz():
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
-        expected_joints = len(self.joint_names)
+        expected_joints = len(self.joint_names_urdf)
         if (n_rows - 7) != expected_joints:
             print(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
@@ -383,7 +399,7 @@ class RHCViz():
             joint_state.name = self.joint_names_rhc
         else:
             # we use the one parsed from the urdf (dangerous)
-            joint_state.name = self.joint_names
+            joint_state.name = self.joint_names_urdf
 
         joint_state.position = joint_positions.tolist()
 
@@ -413,10 +429,10 @@ class RHCViz():
         joint_state = JointState()
         joint_state.header.stamp = now.to_msg()
         if self._check_jnt_names:
-            joint_state.name = self.joint_names_rhc
+            joint_state.name = self.joint_names_robot
         else:
             # we use the one parsed from the urdf (dangerous)
-            joint_state.name = self.joint_names
+            joint_state.name = self.joint_names_urdf
         joint_state.position = joint_positions.flatten().tolist()
 
         self.publishers[self.state_ns].publish(joint_state)
@@ -467,7 +483,10 @@ class RHCViz():
     
     def check_jnt_names_consistency(self):
 
-        return sorted(self.joint_names) == sorted(self.joint_names_rhc)
+        rhc_names_ok = sorted(self.joint_names_urdf) == sorted(self.joint_names_rhc)
+        robot_names_ok = sorted(self.joint_names_urdf) == sorted(self.joint_names_robot)
+
+        return rhc_names_ok and robot_names_ok
 
     def run(self):
 
@@ -484,20 +503,17 @@ class RHCViz():
         self.node.declare_parameter(self.robot_description_name, robot_description)
 
         # subscribers to joint names
-        self.initialize_joint_names_subscriber(topic_name=self.joint_names_topicname)
-        while not self.joint_names_acquired and self._check_jnt_names:
-            
-            print("Waiting for joint names data from RHC controller...")
-
+        self.initialize_joint_names_subscribers(robot_topic_name=self.robot_joint_names_topicname,
+                            rhc_topic_name=self.rhc_joint_names_topicname)
+        while ((not self.robot_joint_names_acquired) or (not self.rhc_joint_names_acquired)) and self._check_jnt_names:
+            print("Waiting for robot and rhc joint names data...")
             rclpy.spin_once(self.node)
 
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
 
         if not self.check_jnt_names_consistency() and self._check_jnt_names:
-
-            print("Not all joints in the parsed URDF where found in the RHC list, or vice versa.")
-
+            print("Not all joints in the parsed URDF where found in the ones provided via topics, or vice versa.")
             return 
 
         # Launch RViz in a separate process
@@ -526,10 +542,9 @@ class RHCViz():
         rclpy.spin_once(self.node, timeout_sec=3)
 
         while rclpy.ok():
-            
+            # keep rhcviz alive
             rclpy.spin_once(self.node)
-
-            self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
         rviz_process.terminate()
 

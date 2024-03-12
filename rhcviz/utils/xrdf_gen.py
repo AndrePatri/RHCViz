@@ -23,6 +23,8 @@ class UrdfGenerator():
         
         self.urdf_path = os.path.join(self.descr_dump_path, f"{self.robotname}.urdf")
 
+        print(f"[UrdfGenerator]: URDF will be generated at {self.urdf_path}")
+        
         if self._xrdf_cmds() is not None:
             cmds = self._xrdf_cmds()[self.robotname]
 

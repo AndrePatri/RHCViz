@@ -4,6 +4,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import TwistStamped
 import tf2_ros
 
 import yaml
@@ -76,6 +78,7 @@ class RHCViz():
         
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
+        self.rhc_refs_subscriber = None
         self.robot_jnt_names_subscriber = None
         self.rhc_jnt_names_subscriber = None
 
@@ -84,6 +87,11 @@ class RHCViz():
         
         self.state_ns = self.names.robot_state_ns(basename=self.basename, 
                                                 namespace=self.namespace)
+        self.rhc_pose_ref_ns = self.names.rhc_pose_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        self.rhc_twist_ref_ns = self.names.rhc_twist_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+
         self.state_tf_prefix = self.names.robot_state_tf_pref(basename=self.basename, 
                                                 namespace=self.namespace)
 
@@ -102,6 +110,11 @@ class RHCViz():
                                                     namespace=self.namespace)
         self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
+        self.rhc_refs_topicname = self.names.rhc_refs_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.rhc_refs_pose_topicname = self.rhc_refs_topicname + "_pose"
+        self.rhc_refs_twist_topicname = self.rhc_refs_topicname + "_twist"
+
         self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
         
@@ -251,6 +264,55 @@ class RHCViz():
 
         config['Visualization Manager']['Displays'].append(robotstate_config)
 
+        # twist ref
+        rhc_ref_twist_config = {
+                'Class': 'rviz_default_plugins/TwistStamped',
+                'Name': 'TwistStamped',
+                'Enabled': True,
+                'Value': True,
+                'Hide Small Values': False,
+                'History Length': 1,
+                'Linear Arrow Scale': 2,
+                'Angular Arrow Scale': 2,
+                'Linear Color':  '87; 227; 137',
+                'Angular Color': '229; 165; 10',
+                'Arrow Width': 0.3,
+                'Topic': {'Depth': 5,
+                        'Durability Policy': 'Volatile',
+                        'Filter size': 10,
+                        'History Policy': 'Keep Last',
+                        'Reliability Policy': 'Reliable',
+                        'Value': f"{self.rhc_twist_ref_ns}/twist_ref"},
+
+            }
+
+        config['Visualization Manager']['Displays'].append(rhc_ref_twist_config)
+
+        # pose ref
+        rhc_ref_pose_config = {
+                'Class': 'rviz_default_plugins/Pose',
+                'Name': 'Pose',
+                'Enabled': True,
+                'Value': True,
+                'Color':  '98; 160; 234',
+                'Shape': 'Axes',
+                'Head Length': 0.15,
+                'Head Radius': 0.08,
+                'Shaft Length': 0.3,
+                'Shaft Radius': 0.025,
+                'Axes Length': 0.2,
+                'Axes Radius': 0.03,
+                'Topic': {'Depth': 5,
+                        'Durability Policy': 'Volatile',
+                        'Filter size': 10,
+                        'History Policy': 'Keep Last',
+                        'Reliability Policy': 'Reliable',
+                        'Value': f"{self.rhc_pose_ref_ns}/pose_ref"},
+
+            }
+
+        config['Visualization Manager']['Displays'].append(rhc_ref_pose_config)
+
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
             yaml.safe_dump(config, file)
@@ -291,6 +353,15 @@ class RHCViz():
         """
         self.rhc_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.rhc_state_callback, 10)
+
+    def initalize_rhc_refs_subscriber(self,
+                        topic_name: str):
+
+        """
+        Initialize the subscriber to listen to the rhc refs data.
+        """
+        self.rhc_refs_subscriber = self.node.create_subscription(
+            Float64MultiArray, topic_name, self.rhc_refs_callback, 10)
 
     def initialize_robot_state_subscriber(self, 
                         topic_name: str):
@@ -346,6 +417,24 @@ class RHCViz():
             # Publish base pose and joint positions for this node
             self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
     
+    def rhc_refs_callback(self, msg):
+
+        # Convert data to numpy array and reshape
+        data = np.array(msg.data).reshape((-1, 1))
+        n_rows = data.shape[0]
+
+        # Check if number of joints match
+        if n_rows != 13:
+            print(f"rhc_refs_callback: Got a msg of length {n_rows} " + \
+                    f"which is not of length 13!!).")
+            return
+
+        pose = data[0:7, 0]  # First 7 elements (position + quaternion)
+        twist = data[7:13, 0]  # rest is twist
+
+        # Publish base pose and joint positions for this node
+        self.publish_rhc_refs_to_rviz(pose, twist)
+
     def robot_state_callback(self, msg):
         """
         Callback function for processing incoming robot state data.
@@ -404,6 +493,34 @@ class RHCViz():
         joint_state.position = joint_positions.tolist()
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
+
+    def publish_rhc_refs_to_rviz(self, pose, twist):
+        """
+        Publish rhc refs to rviz markers
+        """
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = self.node.get_clock().now().to_msg()
+        pose_msg.header.frame_id = 'world'
+        pose_msg.pose.position.x = pose[0]
+        pose_msg.pose.position.y = pose[1]
+        pose_msg.pose.position.z = pose[2]
+        pose_msg.pose.orientation.x = pose[3]
+        pose_msg.pose.orientation.y = pose[4]
+        pose_msg.pose.orientation.z = pose[5]
+        pose_msg.pose.orientation.w = pose[6]
+
+        twist_msg = TwistStamped()
+        twist_msg.header.stamp = self.node.get_clock().now().to_msg()
+        twist_msg.header.frame_id = 'world'  
+        twist_msg.twist.linear.x = twist[0]
+        twist_msg.twist.linear.y = twist[1]
+        twist_msg.twist.linear.z = twist[2]
+        twist_msg.twist.angular.x = twist[3]
+        twist_msg.twist.angular.y = twist[4]
+        twist_msg.twist.angular.z = twist[5]
+
+        self.publishers[self.rhc_pose_ref_ns].publish(pose_msg)
+        self.publishers[self.rhc_twist_ref_ns].publish(twist_msg)
 
     def publish_robot_state_to_rviz(self, base_pose, joint_positions):
         """
@@ -533,9 +650,14 @@ class RHCViz():
         # Publisher for robot state
         self.publishers[self.state_ns] = self.node.create_publisher(JointState, 
                                             '/{}/joint_states'.format(self.state_ns), 10)
-        
+        # publishers for pose and twist
+        self.publishers[self.rhc_pose_ref_ns] = self.node.create_publisher(PoseStamped, 
+                                            '/{}/pose_ref'.format(self.rhc_pose_ref_ns), 10)
+        self.publishers[self.rhc_twist_ref_ns] = self.node.create_publisher(TwistStamped, 
+                                            '/{}/twist_ref'.format(self.rhc_twist_ref_ns), 10)
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
+        self.initalize_rhc_refs_subscriber(topic_name=self.rhc_refs_topicname)
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
 
         # give some time for the robot_state_publishers to start

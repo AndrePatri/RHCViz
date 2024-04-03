@@ -12,18 +12,21 @@ def main(robot_type, n_rhc_nodes):
     handshaker_cmd = ['python3', os.path.join(dir_path, 'dummy_handshaker.py'), str(n_rhc_nodes), robot_type]
     rhc_state_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_rhc_state_publisher.py'), robot_type]
     robot_state_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_robot_state_publisher.py'), robot_type]
+    rhc_ref_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_rhc_ref_state_publisher.py'), robot_type]
 
     # Start each script as a subprocess
-    print(handshaker_cmd)
+
     handshaker_process = subprocess.Popen(handshaker_cmd)
     rhc_state_process = subprocess.Popen(rhc_state_pub_cmd)
     robot_state_process = subprocess.Popen(robot_state_pub_cmd)
+    rhc_refs_process = subprocess.Popen(rhc_ref_pub_cmd)
 
     # Wait for the subprocesses to finish (optional)
     handshaker_process.wait()
     rhc_state_process.wait()
     robot_state_process.wait()
-
+    rhc_refs_process.wait()
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Run all RHCViz related scripts")
     parser.add_argument('--robot_type', choices=['aliengo', 'centauro'], 

@@ -27,6 +27,7 @@ class RHCPublisher():
         self.node = rclpy.create_node(name)
 
         self.topic_name_refs = self.names.rhc_refs_topicname(basename=self.basename, namespace=robot_type)
+        self.topic_name_high_lev_refs = self.names.hl_refs_topicname(basename=self.basename, namespace=robot_type)
 
         self._qos_settings = QoSProfile(
                 reliability=ReliabilityPolicy.RELIABLE, # BEST_EFFORT
@@ -40,25 +41,40 @@ class RHCPublisher():
         self.publisher = self.node.create_publisher(Float64MultiArray, 
                         self.topic_name_refs, 
                         qos_profile=self._qos_settings)
+        self.publisher_high_lev_refs = self.node.create_publisher(Float64MultiArray, 
+                        self.topic_name_high_lev_refs, 
+                        qos_profile=self._qos_settings)
 
         self.sleep_dt = 0.1  # s
         # self.rate = self.create_rate(self.rate_value)
 
-    def publish_rhc_refs(self):
+    def publish_refs(self):
         
-        base_pose = np.zeros(7 + 6)  # Null pose (3 pos + 4 quat + 6 twist)
-        base_pose[2] = 0.5
+        # rhc refs
+        base_full = np.zeros(7 + 6)  # Null pose (3 pos + 4 quat + 6 twist)
+        base_full[2] = 0.5
         quaternion = np.random.rand(4)
         quaternion /= np.linalg.norm(quaternion)
-        base_pose[3:7] = quaternion  # Ensure valid quaternion
-        base_pose[7:13] = np.random.uniform(-0.1, 0.1, size=6)
+        base_full[3:7] = quaternion  # Ensure valid quaternion
+        base_full[7:13] = np.random.uniform(-0.1, 0.1, size=6)
         
+        # high lev refs
+        base_full_hl = np.zeros(7 + 6)  # Null pose (3 pos + 4 quat + 6 twist)
+        base_full_hl[0] = 0.5
+        base_full_hl[2] = 0.3
+        quaternion_hl = np.random.rand(4)
+        quaternion_hl /= np.linalg.norm(quaternion_hl)
+        base_full_hl[3:7] = quaternion_hl  # Ensure valid quaternion
+        base_full_hl[7:13] = np.random.uniform(-0.1, 0.1, size=6)
+
         while rclpy.ok():
             # Create a matrix for base pose and random joint positions
             
-            msg_refs = Float64MultiArray(data=base_pose.flatten())
+            msg_refs = Float64MultiArray(data=base_full.flatten())
+            msg_refs_hl = Float64MultiArray(data=base_full_hl.flatten())
 
             self.publisher.publish(msg_refs)
+            self.publisher_high_lev_refs.publish(msg_refs_hl)
 
             self.perf_timer.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
@@ -74,7 +90,7 @@ def main(args=None):
 
     try:
         
-        rhc_publisher.publish_rhc_refs()
+        rhc_publisher.publish_refs()
 
     except KeyboardInterrupt:
 

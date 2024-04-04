@@ -11,7 +11,6 @@ class NamingConventions:
         self.ROBOT_Q_NAME = "robot_q"
         self.RHC_Q_NAME = "rhc_q"
 
-        self.RHC_REFS_NAME = "rhc_refs"
 
         self.HANDSHAKE_BASENAME = "HandShake"
 
@@ -23,8 +22,13 @@ class NamingConventions:
         self.RHC_STATE_NS_BASE = "rhc_node"
         self.RHC_STATE_TF_PREFIX_BASE = "rhc_node"
 
+        self.RHC_REFS_NAME = "rhc_refs"
         self.RHC_POSE_REF_NS_BASE = "rhc_pose_ref_rviz"
         self.RHC_TWIST_REF_NS_BASE = "rhc_twist_ref_rviz"
+
+        self.HIGH_LEV_REFS_NAME = "hl_refs"
+        self.HIGH_LEV_POSE_REF_NS_BASE = "hl_pose_ref_rviz"
+        self.HIGH_LEV_TWIST_REF_NS_BASE = "hl_twist_ref_rviz"
 
     def global_ns(self, 
             basename: str, 
@@ -82,15 +86,15 @@ class NamingConventions:
         topic_name = f"/{global_ns}_{self.RHC_REFS_NAME}"
 
         return topic_name
-
-    def rhc_twist_ref_topicname(self, 
+    
+    def hl_refs_topicname(self, 
                     basename: str, 
                     namespace: str):
 
         global_ns = self.global_ns(basename = basename, 
                                 namespace=namespace)
 
-        topic_name = f"/{global_ns}_{self.RHC_REFS_TWIST_NAME}"
+        topic_name = f"/{global_ns}_{self.HIGH_LEV_REFS_NAME}"
 
         return topic_name
 
@@ -147,6 +151,24 @@ class NamingConventions:
                                     namespace=namespace)
         
         return f'{global_ns}_{self.RHC_TWIST_REF_NS_BASE}'
+
+    def hl_pose_ref_ns(self,
+                    basename: str, 
+                    namespace: str):
+        
+        global_ns = self.global_ns(basename = basename, 
+                                    namespace=namespace)
+        
+        return f'{global_ns}_{self.HIGH_LEV_POSE_REF_NS_BASE}'
+
+    def hl_twist_ref_ns(self,
+                    basename: str, 
+                    namespace: str):
+        
+        global_ns = self.global_ns(basename = basename, 
+                                    namespace=namespace)
+        
+        return f'{global_ns}_{self.HIGH_LEV_TWIST_REF_NS_BASE}'
 
     def rhc_state_ns(self,
                     basename: str, 

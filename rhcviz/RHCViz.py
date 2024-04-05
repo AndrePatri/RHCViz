@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 import rospy
 import random
-import subprocess
 from sensor_msgs.msg import JointState
 from urdf_parser_py.urdf import URDF
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped, TwistStamped
 import tf2_ros
 
 import yaml
@@ -20,8 +19,9 @@ import numpy as np
 
 from rhcviz.utils.namings import NamingConventions
 from rhcviz.utils.string_list_encoding import StringArray
+from rhcviz.utils.ros_utils import start_robot_state_publisher
 
-# import time
+import multiprocess as mp
 
 class RHCViz:
 
@@ -31,10 +31,12 @@ class RHCViz:
             namespace: str = "", 
             basename: str = "RHCViz", 
             rate: float = 100,
-            cpu_cores: list = None, 
             use_only_collisions = False, 
+            check_jnt_names = True,
             nodes_perc: int = 100):
         
+        self._check_jnt_names = check_jnt_names
+
         self.syspaths = PathsGetter()
         
         self.names = NamingConventions()
@@ -47,8 +49,6 @@ class RHCViz:
 
         self.namespace = namespace
         self.basename = basename
-
-        self.cpu_cores = cpu_cores
 
         self.baselink_name = "base_link"
 
@@ -63,6 +63,8 @@ class RHCViz:
         
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
+        self.rhc_refs_subscriber = None
+        self.hl_refs_subscriber = None
         self.robot_jnt_names_subscriber = None
         self.rhc_jnt_names_subscriber = None
 
@@ -71,26 +73,39 @@ class RHCViz:
         
         self.state_ns = self.names.robot_state_ns(basename=self.basename, 
                                                 namespace=self.namespace)
+        self.rhc_pose_ref_ns = self.names.rhc_pose_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        self.rhc_twist_ref_ns = self.names.rhc_twist_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        self.hl_pose_ref_ns = self.names.hl_pose_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        self.hl_twist_ref_ns = self.names.hl_twist_ref_ns(basename=self.basename, 
+                                                namespace=self.namespace)
+        
         self.state_tf_prefix = self.names.robot_state_tf_pref(basename=self.basename, 
                                                 namespace=self.namespace)
 
         self.urdf_file_path = urdf_file_path
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
-        self.joint_names, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
+        self.joint_names_urdf, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
         
         self.robot_joint_names = []
         self.robot_joint_names_acquired = False
-        self.rhc_joint_names = []
-        self.rhc_joint_names_acquired = False
+        self.joint_names_rhc = []
+        self.joint_names_rhc_acquired = False
 
         self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
-        self.rhc_joint_names_topicname = self.names.rhc_jntnames(basename=self.basename, 
+        self.joint_names_rhc_topicname = self.names.rhc_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
         self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
         self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.rhc_refs_topicname = self.names.rhc_refs_topicname(basename=self.basename, 
+                                                    namespace=self.namespace)
+        self.hl_refs_topicname = self.names.hl_refs_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
         
         self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, 
@@ -145,16 +160,6 @@ class RHCViz:
                                                     namespace=self.namespace, 
                                                     index=i))
 
-    def get_taskset_command(self):
-        """
-        Generate the taskset command based on the specified CPU cores.
-        """
-        if self.cpu_cores:
-            core_string = ','.join(map(str, self.cpu_cores))
-            return ['taskset', '-c', core_string]
-        else:
-            return []
-
     def rviz_config_path_default(self):
 
         return self.syspaths.DEFAULT_RVIZ_CONFIG_PATH
@@ -166,6 +171,13 @@ class RHCViz:
         with open(urdf_file_path, 'r') as file:
             return file.read()
 
+    def launch_rviz(self):
+        
+        updated_config_path = self.update_rviz_config()
+        rviz_command = ['rviz', '-d', updated_config_path]
+        import subprocess
+        return subprocess.Popen(rviz_command)
+    
     def update_rviz_config(self):
         with open(self.rviz_config_path, 'r') as file:
             config = yaml.safe_load(file)
@@ -207,6 +219,10 @@ class RHCViz:
         }
         config['Visualization Manager']['Displays'].append(robotstate_config)
 
+        # rhc twist ref
+
+        # rhc pose ref
+
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
             yaml.safe_dump(config, file)
@@ -228,6 +244,13 @@ class RHCViz:
 
         return joint_names, state_dimensions
 
+    def initialize_joint_names_subscribers(self, 
+                        robot_topic_name: str,
+                        rhc_topic_name: str):
+        
+        self.initialize_robot_joint_names_subscriber(topic_name=robot_topic_name)
+        self.initialize_rhc_joint_names_subscriber(topic_name=rhc_topic_name)
+        
     def initialize_robot_joint_names_subscriber(self, 
                         topic_name: str):
         """
@@ -255,6 +278,26 @@ class RHCViz:
             Float64MultiArray, 
             self.rhc_state_callback)
 
+    def initalize_rhc_refs_subscriber(self,
+                        topic_name: str):
+
+        """
+        Initialize the subscriber to listen to the rhc refs data.
+        """
+        self.rhc_refs_subscriber = rospy.Subscriber(topic_name, 
+            Float64MultiArray, 
+            self.rhc_refs_callback)
+
+    def initalize_hl_refs_subscriber(self,
+                        topic_name: str):
+
+        """
+        Initialize the subscriber to listen to the rhc refs data.
+        """
+        self.hl_refs_subscriber = rospy.Subscriber(topic_name, 
+            Float64MultiArray, 
+            self.hl_refs_callback)
+
     def initialize_robot_state_subscriber(self, 
                         topic_name: str):
         """
@@ -274,11 +317,11 @@ class RHCViz:
 
     def rhc_jnt_names_callback(self, data):
         
-        self.rhc_joint_names = self.string_list_decoder.decode(data.data) 
+        self.joint_names_rhc = self.string_list_decoder.decode(data.data) 
 
-        if not self.rhc_joint_names_acquired:
+        if not self.joint_names_rhc_acquired:
 
-            self.rhc_joint_names_acquired = True
+            self.joint_names_rhc_acquired = True
 
     def rhc_state_callback(self, data):
         """
@@ -289,7 +332,7 @@ class RHCViz:
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
-        expected_joints = len(self.joint_names)
+        expected_joints = len(self.joint_names_urdf)
         if (n_rows - 7) != expected_joints:
             rospy.logerr(f"rhc_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
@@ -309,6 +352,44 @@ class RHCViz:
             # Publish base pose and joint positions for this node
             self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
     
+    def rhc_refs_callback(self, msg):
+
+        # Convert data to numpy array and reshape
+        data = np.array(msg.data).reshape((-1, 1))
+        n_rows = data.shape[0]
+
+        # Check if number of joints match
+        if n_rows != 13:
+            print(f"rhc_refs_callback: Got a msg of length {n_rows} " + \
+                    f"which is not of length 13!!).")
+            return
+
+        pose = data[0:7, 0]  # First 7 elements (position + quaternion)
+        twist = data[7:13, 0]  # rest is twist
+
+        # Publish base pose and joint positions for this node
+        self.publish_refs_to_rviz(pose=pose, twist=twist,
+                pose_id=self.rhc_pose_ref_ns, twist_id=self.rhc_twist_ref_ns)
+
+    def hl_refs_callback(self, msg):
+
+        # Convert data to numpy array and reshape
+        data = np.array(msg.data).reshape((-1, 1))
+        n_rows = data.shape[0]
+
+        # Check if number of joints match
+        if n_rows != 13:
+            print(f"hl_refs_callback: Got a msg of length {n_rows} " + \
+                    f"which is not of length 13!!).")
+            return
+
+        pose = data[0:7, 0]  # First 7 elements (position + quaternion)
+        twist = data[7:13, 0]  # rest is twist
+
+        # Publish base pose and joint positions for this node
+        self.publish_refs_to_rviz(pose=pose, twist=twist,
+                pose_id=self.hl_pose_ref_ns, twist_id=self.hl_twist_ref_ns)
+
     def robot_state_callback(self, data):
         """
         Callback function for processing incoming robot state data.
@@ -318,7 +399,7 @@ class RHCViz:
         n_rows, n_cols = matrix.shape
 
         # Check if number of joints match
-        expected_joints = len(self.joint_names)
+        expected_joints = len(self.joint_names_urdf)
         if (n_rows - 7) != expected_joints:
             rospy.logerr(f"robot_state_callback: Number of actuated joints in the message {n_rows - 7} " + \
                     f"does not match the robot model ({expected_joints}).")
@@ -356,10 +437,43 @@ class RHCViz:
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = rospy.Time.now()
-        joint_state.name = self.rhc_joint_names
+        if self._check_jnt_names:
+            joint_state.name = self.joint_names_rhc
+        else:
+            # we use the one parsed from the urdf (dangerous)
+            joint_state.name = self.joint_names_urdf
         joint_state.position = joint_positions
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
+    
+    def publish_refs_to_rviz(self, pose, twist,
+                    pose_id: str, twist_id: str):
+        """
+        Publish rhc refs to rviz markers
+        """
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = rospy.Time.now()
+        pose_msg.header.frame_id = 'world'
+        pose_msg.pose.position.x = pose[0]
+        pose_msg.pose.position.y = pose[1]
+        pose_msg.pose.position.z = pose[2]
+        pose_msg.pose.orientation.x = pose[3]
+        pose_msg.pose.orientation.y = pose[4]
+        pose_msg.pose.orientation.z = pose[5]
+        pose_msg.pose.orientation.w = pose[6]
+
+        twist_msg = TwistStamped()
+        twist_msg.header.stamp = rospy.Time.now()
+        twist_msg.header.frame_id = 'world'  
+        twist_msg.twist.linear.x = twist[0]
+        twist_msg.twist.linear.y = twist[1]
+        twist_msg.twist.linear.z = twist[2]
+        twist_msg.twist.angular.x = twist[3]
+        twist_msg.twist.angular.y = twist[4]
+        twist_msg.twist.angular.z = twist[5]
+
+        self.publishers[pose_id].publish(pose_msg)
+        self.publishers[twist_id].publish(twist_msg)
 
     def publish_robot_state_to_rviz(self, base_pose, joint_positions):
         """
@@ -383,52 +497,23 @@ class RHCViz:
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = rospy.Time.now()
-        joint_state.name = self.robot_joint_names
+        if self._check_jnt_names:
+            joint_state.name = self.joint_names_robot
+        else:
+            # we use the one parsed from the urdf (dangerous)
+            joint_state.name = self.joint_names_urdf
         joint_state.position = joint_positions
 
         self.publishers[self.state_ns].publish(joint_state)
-
-    def start_robot_state_publisher(self, urdf, robot_ns, node_index):
-        """
-        Start a robot_state_publisher for a robot namespace with specified CPU affinity,
-        based on the node index.
-        """
-        # Calculate the appropriate CPU core for this node
-        if self.cpu_cores and len(self.cpu_cores) > 0:
-            core_index = node_index % len(self.cpu_cores)
-            selected_core = self.cpu_cores[core_index]
-            taskset_command = ['taskset', '-c', str(selected_core)]
-        else:
-            taskset_command = []
-
-        # Set the robot description for each namespace
-        full_param_name = '/{}/robot_description'.format(robot_ns)
-        rospy.set_param(full_param_name, urdf)
-
-        rsp_command = [
-            'rosrun', 'robot_state_publisher', 'robot_state_publisher',
-            '__ns:=' + robot_ns,
-            '_tf_prefix:=' + robot_ns
-        ]
-        full_command = taskset_command + rsp_command
-        rsp_process = subprocess.Popen(full_command)
-        return rsp_process
-    
-    def launch_rviz(self):
-        """
-        Launch RViz with specified CPU affinity.
-        """
-        updated_config_path = self.update_rviz_config()
-        taskset_command = self.get_taskset_command()
-        rviz_command = ['rviz', '-d', updated_config_path]
-        full_command = taskset_command + rviz_command
-        return subprocess.Popen(full_command)
     
     def check_jnt_names_consistency(self):
 
-        return sorted(self.joint_names) == sorted(self.robot_joint_names)
+        return sorted(self.joint_names_urdf) == sorted(self.robot_joint_names)
 
     def run(self):
+
+        # mp context for child processes
+        ctx = mp.get_context('spawn')
 
         rospy.init_node('RHCViz', anonymous=True)
         rate = rospy.Rate(self.rate) 
@@ -442,27 +527,19 @@ class RHCViz:
         rospy.set_param(self.robot_description_name, robot_description)
 
         # subscribers to joint names
-        self.initialize_robot_joint_names_subscriber(topic_name=self.robot_joint_names_topicname)
-        while not self.robot_joint_names_acquired:
-            
-            rospy.loginfo(f"Waiting for joint names data from robot...")
-
+        self.initialize_joint_names_subscribers(robot_topic_name=self.robot_joint_names_topicname,
+                            rhc_topic_name=self.joint_names_rhc_topicname)
+        while ((not self.robot_joint_names_acquired) or (not self.joint_names_rhc_acquired)) and self._check_jnt_names:
+            rospy.loginfo("Waiting for robot and rhc joint names data...")
             rospy.sleep(0.1)
-
-        self.initialize_rhc_joint_names_subscriber(topic_name=self.rhc_joint_names_topicname)
-        while not self.rhc_joint_names_acquired:
-            
-            rospy.loginfo(f"Waiting for joint names data from RHC controller...")
-
-            rospy.sleep(0.2)
             
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
-
-        if not self.check_jnt_names_consistency():
-
-            rospy.logerr("Not all joints in the parsed URDF where found in the RHC list, or viceversa.")
-
+        if not self.check_jnt_names_consistency() and self._check_jnt_names:
+            msg = "" + \
+                "URDF: [" +  ", ".join(self.joint_names_urdf) + "]\n" \
+                "RHC: [" +  ", ".join(self.joint_names_rhc) + "]\n"
+            rospy.logerr(msg)
             return 
 
         # Launch RViz in a separate process
@@ -472,7 +549,10 @@ class RHCViz:
         total_nodes = self.n_rhc_nodes + 1  # Including robot state
         for i in range(total_nodes):
             node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
-            self.rsp_processes.append(self.start_robot_state_publisher(robot_description, node_ns, i))
+            self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
+                            name="RHCViz_robot_state_publisher_n" + str(i),
+                            args=(robot_description, node_ns, i)))
+            self.rsp_processes[i].start()
 
         # Publishers for RHC nodes
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -481,16 +561,23 @@ class RHCViz:
             self.publishers[ns] = rospy.Publisher(f'/{ns}/joint_states', JointState, queue_size=10)
         # Pubilisher for robot state
         self.publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
+        # publishers for pose and twist rhc refs
+        self.publishers[self.rhc_pose_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.rhc_pose_ref_ns), PoseStamped, queue_size=10)
+        self.publishers[self.rhc_twist_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.rhc_twist_ref_ns), TwistStamped, queue_size=10)
+        # publishers for pose and twist high-level refs
+        self.publishers[self.hl_pose_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.hl_pose_ref_ns), PoseStamped, queue_size=10)
+        self.publishers[self.hl_twist_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.hl_twist_ref_ns), TwistStamped, queue_size=10)
         
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
+        self.initalize_rhc_refs_subscriber(topic_name=self.rhc_refs_topicname)
+        self.initalize_hl_refs_subscriber(topic_name=self.hl_refs_topicname)
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
 
         # give some time for the robot_state_publishers to start
         rospy.sleep(3)
 
         while not rospy.is_shutdown():
-            
             rate.sleep()
 
         rviz_process.terminate()

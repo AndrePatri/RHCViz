@@ -39,7 +39,7 @@ def publish_rhc_state(robot_type):
                         Float64MultiArray, 
                         queue_size=10)
     
-    rate_value = 1  # Hz
+    rate_value = 0.1  # Hz
     rate = rospy.Rate(rate_value)
 
     # Set number of joints based on robot type

@@ -213,15 +213,86 @@ class RHCViz:
             'Name': 'RobotState',
             'Enabled': True,
             'Visual Enabled': False,
-            'Collision Enabled': True, # to better distinguish the state from the nodes
+            'Collision Enabled': False, # to better distinguish the state from the nodes
             'Robot Description': f'{self.robot_description_name}',
             'TF Prefix': f'{self.state_tf_prefix}'
         }
         config['Visualization Manager']['Displays'].append(robotstate_config)
 
         # rhc twist ref
+        rhc_ref_twist_config = {
+                'Class': 'rviz/TwistStamped',
+                'Name': 'TwistStampedRhcRef',
+                'Enabled': True,
+                'Value': True,
+                'Hide Small Values': False,
+                'History Length': 1,
+                'Linear Arrow Scale': 1,
+                'Angular Arrow Scale': 1,
+                'Linear Color':  '87; 227; 137',
+                'Angular Color': '229; 165; 10',
+                'Arrow Width': 0.2,
+                'Topic': f"{self.rhc_twist_ref_ns}/twist_ref",
+
+        }
+
+        config['Visualization Manager']['Displays'].append(rhc_ref_twist_config)
 
         # rhc pose ref
+        rhc_ref_pose_config = {
+                'Class': 'rviz/Pose',
+                'Name': 'PoseRhcRef',
+                'Enabled': True,
+                'Value': True,
+                'Color':  '98; 160; 234',
+                'Shape': 'Axes',
+                'Head Length': 0.15,
+                'Head Radius': 0.08,
+                'Shaft Length': 0.3,
+                'Shaft Radius': 0.025,
+                'Axes Length': 0.1,
+                'Axes Radius': 0.03,
+                'Topic': f"{self.rhc_pose_ref_ns}/pose_ref",
+        }
+
+        config['Visualization Manager']['Displays'].append(rhc_ref_pose_config)
+
+        # high level twist ref
+        hl_ref_twist_config = {
+                'Class': 'rviz/TwistStamped',
+                'Name': 'TwistStampedHLRefs',
+                'Enabled': True,
+                'Value': True,
+                'Hide Small Values': False,
+                'History Length': 1,
+                'Linear Arrow Scale': 1,
+                'Angular Arrow Scale': 1,
+                'Linear Color':  '192; 97; 203',
+                'Angular Color': '224; 27; 36',
+                'Arrow Width': 0.3,
+                'Topic': f"{self.hl_twist_ref_ns}/twist_ref",
+        }
+
+        config['Visualization Manager']['Displays'].append(hl_ref_twist_config)
+
+        # high level pose ref
+        hl_ref_pose_config = {
+                'Class': 'rviz/Pose',
+                'Name': 'PoseHLRefs',
+                'Enabled': True,
+                'Value': True,
+                'Color':  '98; 160; 234',
+                'Shape': 'Axes',
+                'Head Length': 0.15,
+                'Head Radius': 0.08,
+                'Shaft Length': 0.3,
+                'Shaft Radius': 0.025,
+                'Axes Length': 0.2,
+                'Axes Radius': 0.04,
+                'Topic': f"{self.hl_pose_ref_ns}/pose_ref",
+        }
+
+        config['Visualization Manager']['Displays'].append(hl_ref_pose_config)
 
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:

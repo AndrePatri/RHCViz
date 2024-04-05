@@ -661,7 +661,10 @@ class RHCViz():
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
         if not self.check_jnt_names_consistency() and self._check_jnt_names:
-            print("Not all joints in the parsed URDF where found in the ones provided via topics, or vice versa.")
+            msg = "" + \
+                "URDF: [" +  ", ".join(self.joint_names_urdf) + "]\n" \
+                "RHC: [" +  ", ".join(self.joint_names_rhc) + "]\n"
+            self.node.get_logger().error(msg)
             return 
 
         # Launch RViz in a separate process

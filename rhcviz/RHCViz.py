@@ -569,7 +569,7 @@ class RHCViz:
         joint_state = JointState()
         joint_state.header.stamp = rospy.Time.now()
         if self._check_jnt_names:
-            joint_state.name = self.joint_names_robot
+            joint_state.name = self.joint_names_rhc
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf

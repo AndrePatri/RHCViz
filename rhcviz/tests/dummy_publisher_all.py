@@ -34,9 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_rhc_nodes', type=int, help="Number of RHC nodes", default=10)
 
     args = parser.parse_args()
-
     if args.robot_type is None:
-
         raise Exception("No robot_type provided")
 
     main(args.robot_type, args.n_rhc_nodes)

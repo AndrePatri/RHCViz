@@ -105,10 +105,10 @@ class RHCViz():
         self.joint_names_rhc = []
         self.joint_names_robot = []
         self.robot_joint_names_acquired = False
-        self.rhc_joint_names_acquired = False
+        self.joint_names_rhc_acquired = False
         self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
-        self.rhc_joint_names_topicname = self.names.rhc_jntnames(basename=self.basename, 
+        self.joint_names_rhc_topicname = self.names.rhc_jntnames(basename=self.basename, 
                                                     namespace=self.namespace)
         self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
@@ -183,9 +183,7 @@ class RHCViz():
             return file.read()
 
     def launch_rviz(self):
-        """
-        Launch RViz with specified CPU affinity.
-        """
+
         updated_config_path = self.update_rviz_config()
         rviz_command = ['rviz2', '-d', updated_config_path]
         import subprocess
@@ -437,11 +435,11 @@ class RHCViz():
     
     def rhc_jnt_names_callback(self, msg):
         
-        if not self.rhc_joint_names_acquired:
+        if not self.joint_names_rhc_acquired:
 
             self.joint_names_rhc = self.string_list_decoder.decode(msg.data) 
             
-            self.rhc_joint_names_acquired = True
+            self.joint_names_rhc_acquired = True
 
     def rhc_state_callback(self, msg):
         """
@@ -559,13 +557,11 @@ class RHCViz():
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = now.to_msg()
-        
         if self._check_jnt_names:
             joint_state.name = self.joint_names_rhc
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf
-
         joint_state.position = joint_positions.tolist()
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
@@ -657,25 +653,22 @@ class RHCViz():
 
         # subscribers to joint names
         self.initialize_joint_names_subscribers(robot_topic_name=self.robot_joint_names_topicname,
-                            rhc_topic_name=self.rhc_joint_names_topicname)
-        while ((not self.robot_joint_names_acquired) or (not self.rhc_joint_names_acquired)) and self._check_jnt_names:
-            print("Waiting for robot and rhc joint names data...")
+                            rhc_topic_name=self.joint_names_rhc_topicname)
+        while ((not self.robot_joint_names_acquired) or (not self.joint_names_rhc_acquired)) and self._check_jnt_names:
+            self.node.get_logger().info("Waiting for robot and rhc joint names data...")
             rclpy.spin_once(self.node)
 
         # check consistency between joint list parsed from urdf and the one 
         # provided by the controller
-
         if not self.check_jnt_names_consistency() and self._check_jnt_names:
             print("Not all joints in the parsed URDF where found in the ones provided via topics, or vice versa.")
             return 
 
         # Launch RViz in a separate process
-        updated_config_path = self.update_rviz_config()
         rviz_process = self.launch_rviz()
         
         # Start a robot_state_publisher for each RHC node and for the robot state
         total_nodes = self.n_rhc_nodes + 1  # Including robot state
-        
         for i in range(total_nodes):
             node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
             self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 

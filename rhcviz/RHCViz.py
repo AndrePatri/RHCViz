@@ -23,10 +23,10 @@ from urdf_parser_py.urdf import URDF
 
 from rhcviz.utils.namings import NamingConventions
 from rhcviz.utils.string_list_encoding import StringArray
-
+from rhcviz.utils.ros_utils import start_robot_state_publisher
 from perf_sleep.pyperfsleep import PerfSleep
 
-import subprocess
+import multiprocess as mp
 
 class RHCViz():
 
@@ -36,7 +36,6 @@ class RHCViz():
             namespace: str = "", 
             basename: str = "RHCViz", 
             rate: float = 100,
-            cpu_cores: list = None, 
             use_only_collisions = False, 
             check_jnt_names = True,
             nodes_perc: int = 100):
@@ -64,8 +63,6 @@ class RHCViz():
 
         self.namespace = namespace
         self.basename = basename
-
-        self.cpu_cores = cpu_cores
 
         self.baselink_name = "base_link"
 
@@ -174,16 +171,6 @@ class RHCViz():
                                                     namespace=self.namespace, 
                                                     index=i))
 
-    def get_taskset_command(self):
-        """
-        Generate the taskset command based on the specified CPU cores.
-        """
-        if self.cpu_cores:
-            core_string = ','.join(map(str, self.cpu_cores))
-            return ['taskset', '-c', core_string]
-        else:
-            return []
-
     def rviz_config_path_default(self):
 
         return self.syspaths.DEFAULT_RVIZ_CONFIG_PATH
@@ -194,6 +181,15 @@ class RHCViz():
         """
         with open(urdf_file_path, 'r') as file:
             return file.read()
+
+    def launch_rviz(self):
+        """
+        Launch RViz with specified CPU affinity.
+        """
+        updated_config_path = self.update_rviz_config()
+        rviz_command = ['rviz2', '-d', updated_config_path]
+        import subprocess
+        return subprocess.Popen(rviz_command)
 
     def update_rviz_config(self):
         with open(self.rviz_config_path, 'r') as file:
@@ -635,50 +631,6 @@ class RHCViz():
 
         self.publishers[self.state_ns].publish(joint_state)
 
-    def start_robot_state_publisher(self, urdf, robot_ns, node_index):
-        """
-        Start a robot_state_publisher for a robot namespace with specified CPU affinity,
-        based on the node index.
-        """
-        # Calculate the appropriate CPU core for this node
-        if self.cpu_cores and len(self.cpu_cores) > 0:
-            core_index = node_index % len(self.cpu_cores)
-            selected_core = self.cpu_cores[core_index]
-            taskset_command = ['taskset', '-c', str(selected_core)]
-        else:
-            taskset_command = []
-
-        # Set the robot description for each namespace
-        full_param_name = '/{}/robot_description'.format(robot_ns)
-        self.node.declare_parameter(full_param_name, urdf)
-        
-        rsp_command = [
-            'ros2', 'run', 'robot_state_publisher', 'robot_state_publisher',
-            '--ros-args',
-            '-r', f'__ns:=/{robot_ns}',
-            # '-r', f'/tf:=/{robot_ns}/tf',
-            '-p', f'robot_description:={urdf}',
-            '-p', f'frame_prefix:={robot_ns}/',
-            # /RHCViz_test_aliengo_rhc_node0/joint_states
-            # '--param', f'robot_state_publisher:__ns:=/aAAAAAAAAAAAAAa',
-            # '-p', f'robot_state_publisher:prefix:=Pippo',
-            # '__ns:=' + robot_ns,
-            # '_tf_prefix:=' + robot_ns
-        ]
-        full_command = taskset_command + rsp_command
-        rsp_process = subprocess.Popen(full_command)
-        return rsp_process
-    
-    def launch_rviz(self):
-        """
-        Launch RViz with specified CPU affinity.
-        """
-        updated_config_path = self.update_rviz_config()
-        taskset_command = self.get_taskset_command()
-        rviz_command = ['rviz2', '-d', updated_config_path]
-        full_command = taskset_command + rviz_command
-        return subprocess.Popen(full_command)
-    
     def check_jnt_names_consistency(self):
 
         rhc_names_ok = sorted(self.joint_names_urdf) == sorted(self.joint_names_rhc)
@@ -687,6 +639,9 @@ class RHCViz():
         return rhc_names_ok and robot_names_ok
 
     def run(self):
+        
+        # mp context for child processes
+        ctx = mp.get_context('spawn')
 
         self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
                                     is_server=False,
@@ -715,13 +670,18 @@ class RHCViz():
             return 
 
         # Launch RViz in a separate process
+        updated_config_path = self.update_rviz_config()
         rviz_process = self.launch_rviz()
-
+        
         # Start a robot_state_publisher for each RHC node and for the robot state
         total_nodes = self.n_rhc_nodes + 1  # Including robot state
+        
         for i in range(total_nodes):
             node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
-            self.rsp_processes.append(self.start_robot_state_publisher(robot_description, node_ns, i))
+            self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
+                            name="RHCViz_robot_state_publisher_n" + str(i),
+                            args=(robot_description, node_ns, i)))
+            self.rsp_processes[i].start()
 
         # Publishers for RHC nodes
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self.node)

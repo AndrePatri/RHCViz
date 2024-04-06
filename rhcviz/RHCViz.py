@@ -224,6 +224,7 @@ class RHCViz:
                 'Class': 'rviz/TwistStamped',
                 'Name': 'TwistStampedRhcRef',
                 'Enabled': True,
+                'Alpha': 1,
                 'Value': True,
                 'Hide Small Values': False,
                 'History Length': 1,
@@ -263,6 +264,7 @@ class RHCViz:
                 'Name': 'TwistStampedHLRefs',
                 'Enabled': True,
                 'Value': True,
+                'Alpha': 1,
                 'Hide Small Values': False,
                 'History Length': 1,
                 'Linear Arrow Scale': 1,
@@ -634,10 +636,10 @@ class RHCViz:
         self.publishers[self.state_ns] = rospy.Publisher('/{}/joint_states'.format(self.state_ns), JointState, queue_size=10)
         # publishers for pose and twist rhc refs
         self.publishers[self.rhc_pose_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.rhc_pose_ref_ns), PoseStamped, queue_size=10)
-        self.publishers[self.rhc_twist_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.rhc_twist_ref_ns), TwistStamped, queue_size=10)
+        self.publishers[self.rhc_twist_ref_ns] = rospy.Publisher('/{}/twist_ref'.format(self.rhc_twist_ref_ns), TwistStamped, queue_size=10)
         # publishers for pose and twist high-level refs
         self.publishers[self.hl_pose_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.hl_pose_ref_ns), PoseStamped, queue_size=10)
-        self.publishers[self.hl_twist_ref_ns] = rospy.Publisher('/{}/pose_ref'.format(self.hl_twist_ref_ns), TwistStamped, queue_size=10)
+        self.publishers[self.hl_twist_ref_ns] = rospy.Publisher('/{}/twist_ref'.format(self.hl_twist_ref_ns), TwistStamped, queue_size=10)
         
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)

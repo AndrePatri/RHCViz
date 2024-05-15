@@ -674,7 +674,7 @@ class RHCViz():
         # Start a robot_state_publisher for each RHC node and for the robot state
         total_nodes = self.n_rhc_selected_nodes + 1  # Including robot state
         for i in range(total_nodes):
-            node_ns = self.nodes_ns[i] if i < self.n_rhc_selected_nodes else self.state_ns
+            node_ns = self.nodes_ns[self.rhc_indeces[i]] if i < self.n_rhc_selected_nodes else self.state_ns
             self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
                             name="RHCViz_robot_state_publisher_n" + str(i),
                             args=(robot_description, node_ns, i)))
@@ -683,7 +683,8 @@ class RHCViz():
         # Publishers for RHC nodes
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self.node)
         self.publishers = {}
-        for ns in self.nodes_ns:
+        for i in range(self.n_rhc_selected_nodes):
+            ns = self.nodes_ns[self.rhc_indeces[i]]
             self.publishers[ns] = self.node.create_publisher(JointState, f'/{ns}/joint_states', 10)
         # Publisher for robot state
         self.publishers[self.state_ns] = self.node.create_publisher(JointState, 

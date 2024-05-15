@@ -67,6 +67,7 @@ class RHCViz():
         self.baselink_name = "base_link"
 
         self.n_rhc_nodes = -1
+        self.n_rhc_selected_nodes = -1
         self.rhc_indeces = [] # might be a subset of [0, ..., self.n_rhc_nodes - 1]
 
         self.nodes_ns = []
@@ -162,8 +163,8 @@ class RHCViz():
         self.rhc_indeces = self.calculate_nodes_indices(self.n_rhc_nodes, 
                                                 self.nodes_perc)
 
+        self.n_rhc_selected_nodes = len(self.rhc_indeces)
         for i in range(0, self.n_rhc_nodes):
-            
             self.nodes_ns.append(self.names.rhc_state_ns(basename=self.basename, 
                                                     namespace=self.namespace, 
                                                     index=i))
@@ -461,7 +462,7 @@ class RHCViz():
                     f"does not match {self.n_rhc_nodes}, which is the expected one.")
             return
         
-        for i in range(len(self.rhc_indeces)):
+        for i in range(self.n_rhc_selected_nodes):
 
             # Extract base pose and joint positions for node i
 
@@ -671,9 +672,9 @@ class RHCViz():
         rviz_process = self.launch_rviz()
         
         # Start a robot_state_publisher for each RHC node and for the robot state
-        total_nodes = self.n_rhc_nodes + 1  # Including robot state
+        total_nodes = self.n_rhc_selected_nodes + 1  # Including robot state
         for i in range(total_nodes):
-            node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
+            node_ns = self.nodes_ns[i] if i < self.n_rhc_selected_nodes else self.state_ns
             self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
                             name="RHCViz_robot_state_publisher_n" + str(i),
                             args=(robot_description, node_ns, i)))

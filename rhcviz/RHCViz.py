@@ -217,7 +217,7 @@ class RHCViz():
                                     'Durability Policy': 'Volatile',
                                     'History Policy': 'Keep Last',
                                     'Reliability Policy': 'Reliable',
-                                    'Value': f"{self.nodes_ns[i]}/robot_description"},
+                                    'Value': f"{self.nodes_ns[self.rhc_indeces[i]]}/robot_description"},
                 'TF Prefix': f'{self.nodes_tf_prefixes[self.rhc_indeces[i]]}',
                 'Alpha': alpha_value,
                 'Update Interval': 0,

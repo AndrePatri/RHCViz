@@ -638,7 +638,8 @@ class RHCViz():
     def run(self):
         
         # mp context for child processes
-        ctx = mp.get_context('spawn')
+        ctx = mp.get_context('forkserver')
+        # ctx = mp.get_context('spawn')
 
         self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
                                     is_server=False,

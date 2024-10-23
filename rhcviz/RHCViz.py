@@ -212,8 +212,8 @@ class RHCViz:
             'Class': 'rviz/RobotModel',
             'Name': 'RobotState',
             'Enabled': True,
-            'Visual Enabled': False,
-            'Collision Enabled': False, # to better distinguish the state from the nodes
+            'Visual Enabled': True,
+            'Collision Enabled': True, # to better distinguish the state from the nodes
             'Robot Description': f'{self.robot_description_name}',
             'TF Prefix': f'{self.state_tf_prefix}'
         }

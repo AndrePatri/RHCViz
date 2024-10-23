@@ -3,7 +3,7 @@ from typing import Dict
 import os
 import subprocess
 
-class UrdfGenerator():
+class UrdfGenerator(ABC):
 
     def __init__(self, robotname: str,
             descr_path: str, 

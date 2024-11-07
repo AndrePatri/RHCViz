@@ -65,6 +65,8 @@ class RHCViz():
         self.basename = basename
 
         self.baselink_name = "base_link"
+        self.moving_robot_fname = "moving_frame_robot"
+        self.moving_rhc_fname = "moving_frame_rhc"
 
         self.n_rhc_nodes = -1
         self.n_rhc_selected_nodes = -1
@@ -555,6 +557,21 @@ class RHCViz():
 
         self.tf_broadcaster.sendTransform(transform)
 
+        # publish a frame which is below the robot base, on the ground and world oriented
+        moving_frame_transform = TransformStamped()
+        moving_frame_transform.header.stamp = now.to_msg()
+        moving_frame_transform.header.frame_id = 'world'
+        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+        moving_frame_transform.transform.translation.x = base_pose[0]
+        moving_frame_transform.transform.translation.y = base_pose[1]
+        moving_frame_transform.transform.translation.z = 0.0
+        moving_frame_transform.transform.rotation.x = 0.0
+        moving_frame_transform.transform.rotation.y = 0.0
+        moving_frame_transform.transform.rotation.z = 0.0
+        moving_frame_transform.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform(moving_frame_transform)
+
         # Publish joint positions
         joint_state = JointState()
         joint_state.header.stamp = now.to_msg()
@@ -615,6 +632,20 @@ class RHCViz():
         transform.transform.rotation.w = base_pose[6]
 
         self.tf_broadcaster.sendTransform(transform)
+
+        # publish a frame which is below the robot base, on the ground and world oriented
+        moving_frame_transform = TransformStamped()
+        moving_frame_transform.header.stamp = now.to_msg()
+        moving_frame_transform.header.frame_id = 'world'
+        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+        moving_frame_transform.transform.translation.x = base_pose[0]
+        moving_frame_transform.transform.translation.y = base_pose[1]
+        moving_frame_transform.transform.translation.z = 0.0
+        moving_frame_transform.transform.rotation.x = 0.0
+        moving_frame_transform.transform.rotation.y = 0.0
+        moving_frame_transform.transform.rotation.z = 0.0
+        moving_frame_transform.transform.rotation.w = 1.0
+        self.tf_broadcaster.sendTransform(moving_frame_transform)
 
         # Publish joint positions
         joint_state = JointState()

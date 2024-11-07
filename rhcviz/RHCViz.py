@@ -51,7 +51,9 @@ class RHCViz:
         self.basename = basename
 
         self.baselink_name = "base_link"
-
+        self.moving_robot_fname = "moving_frame_robot"
+        self.moving_rhc_fname = "moving_frame_rhc"
+            
         self.rate = rate
 
         self.n_rhc_nodes = -1
@@ -553,7 +555,7 @@ class RHCViz:
 
         twist_msg = TwistStamped()
         twist_msg.header.stamp = rospy.Time.now()
-        twist_msg.header.frame_id = 'world'  
+        twist_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
         twist_msg.twist.linear.x = twist[0]
         twist_msg.twist.linear.y = twist[1]
         twist_msg.twist.linear.z = twist[2]
@@ -588,7 +590,7 @@ class RHCViz:
         moving_frame_transform = TransformStamped()
         moving_frame_transform.header.stamp = now
         moving_frame_transform.header.frame_id = 'world'
-        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
         moving_frame_transform.transform.translation.x = base_pose[0]
         moving_frame_transform.transform.translation.y = base_pose[1]
         moving_frame_transform.transform.translation.z = 0.0

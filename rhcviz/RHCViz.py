@@ -602,7 +602,7 @@ class RHCViz():
 
         twist_msg = TwistStamped()
         twist_msg.header.stamp = self.node.get_clock().now().to_msg()
-        twist_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
+        twist_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
         twist_msg.twist.linear.x = twist[0]
         twist_msg.twist.linear.y = twist[1]
         twist_msg.twist.linear.z = twist[2]

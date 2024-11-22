@@ -203,6 +203,9 @@ class RHCViz():
         import math  
         alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / len(self.rhc_indeces)
 
+        # default to use the robot's moving frame as fixed frame
+        config['Visualization Manager']['Global Options']['Fixed Frame']=f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+
         # add robot models for each node
         for i in range(len(self.rhc_indeces)):
             

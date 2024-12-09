@@ -495,9 +495,8 @@ class RHCViz:
         Publish rhc state to rviz
         """
         # Publish base pose
-        now=rospy.Time.now()
         transform = TransformStamped()
-        transform.header.stamp = now
+        transform.header.stamp = rospy.Time.now()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.nodes_tf_prefixes[node_index]}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -512,7 +511,7 @@ class RHCViz:
         
         # publish a frame which is below the robot base, on the ground and world oriented
         moving_frame_transform = TransformStamped()
-        moving_frame_transform.header.stamp = now
+        moving_frame_transform.header.stamp = rospy.Time.now()
         moving_frame_transform.header.frame_id = 'world'
         moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
         moving_frame_transform.transform.translation.x = base_pose[0]
@@ -570,10 +569,9 @@ class RHCViz:
         """
         Publish robot state to rviz
         """
-        now=rospy.Time.now()
         # Publish base pose
         transform = TransformStamped()
-        transform.header.stamp =now
+        transform.header.stamp =rospy.Time.now()
         transform.header.frame_id = 'world'
         transform.child_frame_id = f'{self.state_tf_prefix}/{self.baselink_name}'
         transform.transform.translation.x = base_pose[0]
@@ -588,7 +586,7 @@ class RHCViz:
 
         # publish a frame which is below the robot base, on the ground and world oriented
         moving_frame_transform = TransformStamped()
-        moving_frame_transform.header.stamp = now
+        moving_frame_transform.header.stamp = rospy.Time.now()
         moving_frame_transform.header.frame_id = 'world'
         moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
         moving_frame_transform.transform.translation.x = base_pose[0]

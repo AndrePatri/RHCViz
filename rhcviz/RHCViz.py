@@ -191,6 +191,9 @@ class RHCViz:
         import math  
         alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / len(self.rhc_indeces)
 
+        # default to use the robot's moving frame as fixed frame
+        config['Visualization Manager']['Global Options']['Fixed Frame']=f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+
         # add robot models for each node
         for i in range(len(self.rhc_indeces)):
             
@@ -215,7 +218,7 @@ class RHCViz:
             'Name': 'RobotState',
             'Enabled': True,
             'Visual Enabled': True,
-            'Collision Enabled': True, # to better distinguish the state from the nodes
+            'Collision Enabled': False, # to better distinguish the state from the nodes
             'Robot Description': f'{self.robot_description_name}',
             'TF Prefix': f'{self.state_tf_prefix}'
         }

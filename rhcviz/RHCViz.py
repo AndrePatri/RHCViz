@@ -594,7 +594,7 @@ class RHCViz():
         """
         pose_msg = PoseStamped()
         pose_msg.header.stamp = self.node.get_clock().now().to_msg()
-        pose_msg.header.frame_id = 'world'
+        pose_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
         pose_msg.pose.position.x = pose[0]
         pose_msg.pose.position.y = pose[1]
         pose_msg.pose.position.z = pose[2]

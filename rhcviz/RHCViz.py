@@ -38,7 +38,8 @@ class RHCViz():
             rate: float = 100,
             use_only_collisions = False, 
             check_jnt_names = True,
-            nodes_perc: int = 100):
+            nodes_perc: int = 100,
+            base_link_name: str = "base_link"):
         
         self.sleep_dt = 1/rate
 
@@ -64,7 +65,7 @@ class RHCViz():
         self.namespace = namespace
         self.basename = basename
 
-        self.baselink_name = "base_link"
+        self.baselink_name = base_link_name
         self.moving_robot_fname = "moving_frame_robot"
         self.moving_rhc_fname = "moving_frame_rhc"
 

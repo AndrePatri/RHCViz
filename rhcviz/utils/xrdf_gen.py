@@ -17,9 +17,9 @@ class UrdfGenerator():
         self.generated = False
         self.urdf_path = ""
 
-    def generate_urdf(self):
+    def generate_urdf(self, folder_name: str = "urdf"):
         xacro_name = self.robotname
-        xacro_path = os.path.join(self.descr_path + "/urdf", f"{xacro_name}.urdf.xacro")
+        xacro_path = os.path.join(self.descr_path + f"/{folder_name}", f"{xacro_name}.urdf.xacro")
         
         self.urdf_path = os.path.join(self.descr_dump_path, f"{self.robotname}.urdf")
 

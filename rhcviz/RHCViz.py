@@ -495,7 +495,8 @@ class RHCViz():
 
         # Publish base pose and joint positions for this node
         self.publish_refs_to_rviz(pose=pose, twist=twist,
-                pose_id=self.rhc_pose_ref_ns, twist_id=self.rhc_twist_ref_ns)
+                pose_id=self.rhc_pose_ref_ns, twist_id=self.rhc_twist_ref_ns,
+                position_is_world=False)
 
     def hl_refs_callback(self, msg):
 
@@ -514,7 +515,8 @@ class RHCViz():
 
         # Publish base pose and joint positions for this node
         self.publish_refs_to_rviz(pose=pose, twist=twist,
-                pose_id=self.hl_pose_ref_ns, twist_id=self.hl_twist_ref_ns)
+                pose_id=self.hl_pose_ref_ns, twist_id=self.hl_twist_ref_ns,
+                position_is_world=True)
 
     def robot_state_callback(self, msg):
         """
@@ -589,13 +591,18 @@ class RHCViz():
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
 
     def publish_refs_to_rviz(self, pose, twist,
-                    pose_id: str, twist_id: str):
+                    pose_id: str, twist_id: str,
+                    position_is_world: bool = True):
         """
         Publish rhc refs to rviz markers
         """
         pose_msg = PoseStamped()
         pose_msg.header.stamp = self.node.get_clock().now().to_msg()
-        pose_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+        if position_is_world:
+            pose_msg.header.frame_id = 'world'
+        else:
+            pose_msg.header.frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
+
         pose_msg.pose.position.x = pose[0]
         pose_msg.pose.position.y = pose[1]
         pose_msg.pose.position.z = pose[2]

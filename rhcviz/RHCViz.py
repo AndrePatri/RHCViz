@@ -469,7 +469,7 @@ class RHCViz:
         # Publish base pose and joint positions for this node
         self.publish_refs_to_rviz(pose=pose, twist=twist,
                 pose_id=self.hl_pose_ref_ns, 
-                twist_id=self.hl_twist_ref_ns
+                twist_id=self.hl_twist_ref_ns,
                 position_is_world=True)
 
     def robot_state_callback(self, data):

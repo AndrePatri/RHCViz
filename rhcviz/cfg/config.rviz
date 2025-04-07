@@ -29,14 +29,14 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.5
-      Cell Size: 1
+    - Alpha: 0.2
+      Cell Size: 0.5
       Class: rviz_default_plugins/Grid
-      Color: 160; 160; 164
+      Color: 140; 133; 139
       Enabled: true
       Line Style:
         Line Width: 0.029999999329447746
-        Value: Lines
+        Value: Billboards
       Name: Grid
       Normal Cell Count: 0
       Offset:
@@ -49,7 +49,7 @@ Visualization Manager:
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 213; 224; 233
+    Background Color: 220; 218; 214
     Fixed Frame: world
     Frame Rate: 30
   Name: root

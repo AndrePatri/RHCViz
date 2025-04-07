@@ -230,7 +230,7 @@ class RHCViz:
                 'Class': 'rviz/TwistStamped',
                 'Name': 'TwistStampedRhcRef',
                 'Enabled': True,
-                'Alpha': 1,
+                'Alpha': 0.3,
                 'Value': True,
                 'Hide Small Values': False,
                 'History Length': 1,
@@ -277,7 +277,7 @@ class RHCViz:
                 'Angular Arrow Scale': 1,
                 'Linear Color':  '192; 97; 203',
                 'Angular Color': '224; 27; 36',
-                'Arrow Width': 0.3,
+                'Arrow Width': 0.4,
                 'Topic': f"{self.hl_twist_ref_ns}/twist_ref",
         }
 

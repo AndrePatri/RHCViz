@@ -10,26 +10,26 @@ import yaml
 import os
 import tempfile
 
-from rhcviz.utils.sys_utils import PathsGetter
-from rhcviz.utils.handshake import RHCVizHandshake
+from mpc_viz.utils.sys_utils import PathsGetter
+from mpc_viz.utils.handshake import MPCVizHandshake
 
 from std_msgs.msg import Float64MultiArray, String
 
 import numpy as np
 
-from rhcviz.utils.namings import NamingConventions
-from rhcviz.utils.string_list_encoding import StringArray
-from rhcviz.utils.ros_utils import start_robot_state_publisher
+from mpc_viz.utils.namings import NamingConventions
+from mpc_viz.utils.string_list_encoding import StringArray
+from mpc_viz.utils.ros_utils import start_robot_state_publisher
 
 import multiprocess as mp
 
-class RHCViz:
+class MPCViz:
 
     def __init__(self, 
             urdf_file_path: str, 
             rviz_config_path=None, 
             namespace: str = "", 
-            basename: str = "RHCViz", 
+            basename: str = "MPCViz", 
             rate: float = 100,
             use_only_collisions = False, 
             check_jnt_names = True,
@@ -116,7 +116,7 @@ class RHCViz:
 
         self.rsp_processes = []
 
-        self.handshaker = RHCVizHandshake(self.handshake_topicname, 
+        self.handshaker = MPCVizHandshake(self.handshake_topicname, 
                                     is_server=False)
     
     def handshake(self):
@@ -632,7 +632,7 @@ class RHCViz:
         # mp context for child processes
         ctx = mp.get_context('spawn')
 
-        rospy.init_node('RHCViz', anonymous=True)
+        rospy.init_node('MPCViz', anonymous=True)
         rate = rospy.Rate(self.rate) 
 
         self.handshake() # blocks, waits for handshake data to be available
@@ -667,7 +667,7 @@ class RHCViz:
         for i in range(total_nodes):
             node_ns = self.nodes_ns[i] if i < self.n_rhc_nodes else self.state_ns
             self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
-                            name="RHCViz_robot_state_publisher_n" + str(i),
+                            name="MPCViz_robot_state_publisher_n" + str(i),
                             args=(robot_description, node_ns, i)))
             self.rsp_processes[i].start()
 
@@ -713,9 +713,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    rhcviz = RHCViz(urdf_file_path=args.urdf_file_path, 
+    mpc_viz = MPCViz(urdf_file_path=args.urdf_file_path, 
            rviz_config_path=args.rviz_config, 
            namespace="", 
-           basename="RHCViz_test")
+           basename="MPCViz_test")
     
-    rhcviz.run()
+    mpc_viz.run()

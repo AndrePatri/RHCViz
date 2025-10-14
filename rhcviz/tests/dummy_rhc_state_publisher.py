@@ -5,10 +5,10 @@ import argparse
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from rhcviz.utils.handshake import RHCVizHandshake
-from rhcviz.utils.namings import NamingConventions
+from mpc_viz.utils.handshake import MPCVizHandshake
+from mpc_viz.utils.namings import NamingConventions
 
-def handshake(handshaker: RHCVizHandshake):
+def handshake(handshaker: MPCVizHandshake):
         
     # Wait for handshake to complete
     while not rospy.is_shutdown() and not handshaker.handshake_done():
@@ -28,7 +28,7 @@ def publish_rhc_state(robot_type):
     
     names = NamingConventions()
 
-    basename = "RHCViz_test"
+    basename = "MPCViz_test"
     handshake_topicname = names.handshake_topicname(basename=basename, 
                                         namespace=robot_type)
 
@@ -48,7 +48,7 @@ def publish_rhc_state(robot_type):
     elif robot_type == "centauro":
         n_joints = 39
 
-    handshaker = RHCVizHandshake(handshake_topicname, 
+    handshaker = MPCVizHandshake(handshake_topicname, 
                             is_server=False)
     
     n_nodes = handshake(handshaker)

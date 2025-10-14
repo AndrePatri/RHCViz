@@ -6,14 +6,14 @@ import argparse
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from rhcviz.utils.namings import NamingConventions
+from mpc_viz.utils.namings import NamingConventions
 
 def publish_robot_state(robot_type):
     rospy.init_node('robot_state_publisher')
 
     names = NamingConventions()
     
-    topic_name = names.robot_q_topicname(basename = "RHCViz_test", 
+    topic_name = names.robot_q_topicname(basename = "MPCViz_test", 
                                 namespace=robot_type)
 
     pub = rospy.Publisher(topic_name, Float64MultiArray, queue_size=10)

@@ -1,7 +1,7 @@
 import rospy
 from std_msgs.msg import Float64MultiArray, String
 
-class RHCVizHandshake:
+class MPCVizHandshake:
 
     PARAM_INDEX_N_ROBOTS = 0  # Index for the number of robots
 
@@ -43,7 +43,7 @@ class RHCVizHandshake:
 
         else:
 
-            rospy.logwarn("set_n_nodes called on a non-server instance of RHCVizHandshake.")
+            rospy.logwarn("set_n_nodes called on a non-server instance of MPCVizHandshake.")
 
     def get_n_nodes(self):
 

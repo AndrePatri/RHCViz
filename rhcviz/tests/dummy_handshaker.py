@@ -3,8 +3,8 @@ import rospy
 
 import argparse
 
-from rhcviz.utils.handshake import RHCVizHandshake
-from rhcviz.utils.namings import NamingConventions
+from mpc_viz.utils.handshake import MPCVizHandshake
+from mpc_viz.utils.namings import NamingConventions
 
 def publish_handshake(n_rhc_nodes: int, 
                 robot_type: str):
@@ -12,7 +12,7 @@ def publish_handshake(n_rhc_nodes: int,
     
     names = NamingConventions()
 
-    basename = "RHCViz_test"
+    basename = "MPCViz_test"
 
     handshake_topicname = names.handshake_topicname(basename=basename, 
                                             namespace=robot_type) 
@@ -20,7 +20,7 @@ def publish_handshake(n_rhc_nodes: int,
     # Define the rate of publishing handshake info (low rate)
     handshake_rate = rospy.Rate(0.5) 
 
-    handshake = RHCVizHandshake(handshake_topicname, is_server=True)
+    handshake = MPCVizHandshake(handshake_topicname, is_server=True)
     
     while not rospy.is_shutdown():
         # Set and publish the handshake information

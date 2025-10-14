@@ -1,7 +1,7 @@
 class NamingConventions:
 
     # utility class which defines naming conventions for 
-    # RHCViz topics
+    # MPCViz topics
 
     def __init__(self):
         

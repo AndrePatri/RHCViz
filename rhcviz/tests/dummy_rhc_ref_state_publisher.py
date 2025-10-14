@@ -6,15 +6,15 @@ import argparse
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from rhcviz.utils.namings import NamingConventions
+from mpc_viz.utils.namings import NamingConventions
 
 def publish_rhc_refs_state(robot_type):
     rospy.init_node('rhc_refs_publisher')
 
     names = NamingConventions()
     
-    topic_name_refs = names.rhc_refs_topicname(basename="RHCViz_test", namespace=robot_type)
-    topic_name_high_lev_refs = names.hl_refs_topicname(basename="RHCViz_test", namespace=robot_type)
+    topic_name_refs = names.rhc_refs_topicname(basename="MPCViz_test", namespace=robot_type)
+    topic_name_high_lev_refs = names.hl_refs_topicname(basename="MPCViz_test", namespace=robot_type)
 
     pub = rospy.Publisher(topic_name_refs, Float64MultiArray, queue_size=10)
     pub_hl =  rospy.Publisher(topic_name_high_lev_refs, Float64MultiArray, queue_size=10)

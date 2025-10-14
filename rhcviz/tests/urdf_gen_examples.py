@@ -1,4 +1,4 @@
-from rhcviz.utils.xrdf_gen import UrdfGenerator
+from mpcviz.utils.xrdf_gen import UrdfGenerator
 
 class RoboUrdfGen(UrdfGenerator):
 

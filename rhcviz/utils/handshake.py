@@ -4,7 +4,7 @@ from rclpy.node import Node
 from rclpy.qos import ReliabilityPolicy, DurabilityPolicy, HistoryPolicy, LivelinessPolicy
 from rclpy.qos import QoSProfile
 
-class RHCVizHandshake():
+class MPCVizHandshake():
 
     PARAM_INDEX_N_ROBOTS = 0  # Index for the number of robots
 
@@ -58,7 +58,7 @@ class RHCVizHandshake():
             self.publisher.publish(msg)
             
         else:
-            self.get_logger().warn("set_n_nodes called on a non-server instance of RHCVizHandshake.")
+            self.get_logger().warn("set_n_nodes called on a non-server instance of MPCVizHandshake.")
 
     def get_n_nodes(self):
         return self.n_nodes
@@ -76,7 +76,7 @@ class RHCVizHandshake():
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RHCVizHandshake("your_handshake_topic_name", is_server=True)  # Update the topic name accordingly
+    node = MPCVizHandshake("your_handshake_topic_name", is_server=True)  # Update the topic name accordingly
     rclpy.spin(node)
     rclpy.shutdown()
 

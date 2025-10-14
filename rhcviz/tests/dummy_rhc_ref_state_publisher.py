@@ -8,8 +8,8 @@ from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from rhcviz.utils.handshake import RHCVizHandshake
-from rhcviz.utils.namings import NamingConventions
+from mpcviz.utils.handshake import MPCVizHandshake
+from mpcviz.utils.namings import NamingConventions
 
 from perf_sleep.pyperfsleep import PerfSleep
 
@@ -20,7 +20,7 @@ class RHCPublisher():
         self.perf_timer = PerfSleep()
 
         self.names = NamingConventions()
-        self.basename = "RHCViz_test"
+        self.basename = "MPCViz_test"
 
         name = self.names.global_ns(basename=self.basename, namespace=robot_type) + "RHCPublisher"
 

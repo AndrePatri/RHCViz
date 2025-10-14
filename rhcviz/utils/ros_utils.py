@@ -11,7 +11,7 @@ def start_robot_state_publisher(urdf, robot_ns, node_index):
         rclpy.init()
 
         node = rclpy.create_node(robot_ns
-                            + f"_RHCViz_robot_state_publisher_n{node_index}")
+                            + f"_MPCViz_robot_state_publisher_n{node_index}")
 
         node.declare_parameter(full_param_name, urdf)
 
@@ -22,7 +22,7 @@ def start_robot_state_publisher(urdf, robot_ns, node_index):
             # '-r', f'/tf:=/{robot_ns}/tf',
             '-p', f'robot_description:={urdf}',
             '-p', f'frame_prefix:={robot_ns}/',
-            # /RHCViz_test_aliengo_rhc_node0/joint_states
+            # /MPCViz_test_aliengo_rhc_node0/joint_states
             # '--param', f'robot_state_publisher:__ns:=/aAAAAAAAAAAAAAa',
             # '-p', f'robot_state_publisher:prefix:=Pippo',
             # '__ns:=' + robot_ns,

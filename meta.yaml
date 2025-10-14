@@ -13,7 +13,7 @@ requirements:
     - python=3.10
 
 about:
-  home: https://github.com/AndrePatri/CoClusterBridge
+  home: https://github.com/AndrePatri/MPCHive
   license: MIT
   summary: Package implementing hybrid RL-MPC stepping strategies for a quadruped robot.
 extra:

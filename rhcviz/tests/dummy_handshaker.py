@@ -4,8 +4,8 @@ import rclpy
 from std_msgs.msg import String
 import argparse
 
-from rhcviz.utils.handshake import RHCVizHandshake
-from rhcviz.utils.namings import NamingConventions
+from mpcviz.utils.handshake import MPCVizHandshake
+from mpcviz.utils.namings import NamingConventions
 
 from perf_sleep.pyperfsleep import PerfSleep
 
@@ -16,7 +16,7 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
 
     names = NamingConventions()
 
-    basename = "RHCViz_test"
+    basename = "MPCViz_test"
 
     handshake_topicname = names.handshake_topicname(basename=basename, namespace=robot_type)
 
@@ -25,7 +25,7 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
     sleep_dt = 0.1
     perf_timer = PerfSleep()
 
-    handshake = RHCVizHandshake(handshake_topic=handshake_topicname, 
+    handshake = MPCVizHandshake(handshake_topic=handshake_topicname, 
                             node=node,
                             is_server=True)
 

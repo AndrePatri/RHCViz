@@ -28,7 +28,7 @@ def main(robot_type, n_rhc_nodes):
     rhc_refs_process.wait()
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Run all RHCViz related scripts")
+    parser = argparse.ArgumentParser(description="Run all MPCViz related scripts")
     parser.add_argument('--robot_type', choices=['aliengo', 'centauro'], 
                         help="Type of the robot ('aliengo' or 'centauro')")
     parser.add_argument('--n_rhc_nodes', type=int, help="Number of RHC nodes", default=10)

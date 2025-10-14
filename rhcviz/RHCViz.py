@@ -12,8 +12,8 @@ import yaml
 import os
 import tempfile
 
-from rhcviz.utils.sys_utils import PathsGetter
-from rhcviz.utils.handshake import RHCVizHandshake
+from mpcviz.utils.sys_utils import PathsGetter
+from mpcviz.utils.handshake import MPCVizHandshake
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -21,20 +21,20 @@ import numpy as np
 
 from urdf_parser_py.urdf import URDF
 
-from rhcviz.utils.namings import NamingConventions
-from rhcviz.utils.string_list_encoding import StringArray
-from rhcviz.utils.ros_utils import start_robot_state_publisher
+from mpcviz.utils.namings import NamingConventions
+from mpcviz.utils.string_list_encoding import StringArray
+from mpcviz.utils.ros_utils import start_robot_state_publisher
 from perf_sleep.pyperfsleep import PerfSleep
 
 import multiprocess as mp
 
-class RHCViz():
+class MPCViz():
 
     def __init__(self, 
             urdf_file_path: str, 
             rviz_config_path=None, 
             namespace: str = "", 
-            basename: str = "RHCViz", 
+            basename: str = "MPCViz", 
             rate: float = 100,
             use_only_collisions = False, 
             check_jnt_names = True,
@@ -53,7 +53,7 @@ class RHCViz():
 
         self.node = rclpy.create_node(self.names.global_ns(basename=basename,
                                     namespace=namespace)
-                            + "RHCViz")
+                            + "MPCViz")
         self.rate = self.node.create_rate(rate) 
 
         self.string_list_decoder = StringArray()
@@ -685,7 +685,7 @@ class RHCViz():
         ctx = mp.get_context('forkserver')
         # ctx = mp.get_context('spawn')
 
-        self.handshaker = RHCVizHandshake(handshake_topic=self.handshake_topicname, 
+        self.handshaker = MPCVizHandshake(handshake_topic=self.handshake_topicname, 
                                     is_server=False,
                                     node=self.node)
 
@@ -721,7 +721,7 @@ class RHCViz():
         for i in range(total_nodes):
             node_ns = self.nodes_ns[self.rhc_indeces[i]] if i < self.n_rhc_selected_nodes else self.state_ns
             self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
-                            name="RHCViz_robot_state_publisher_n" + str(i),
+                            name="MPCViz_robot_state_publisher_n" + str(i),
                             args=(robot_description, node_ns, i)))
             self.rsp_processes[i].start()
 
@@ -754,7 +754,7 @@ class RHCViz():
         rclpy.spin_once(self.node, timeout_sec=3)
 
         while rclpy.ok():
-            # keep rhcviz alive
+            # keep mpcviz alive
             rclpy.spin_once(self.node)
             PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
@@ -774,10 +774,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    rhcviz = RHCViz(urdf_file_path=args.urdf_file_path, 
+    mpcviz = MPCViz(urdf_file_path=args.urdf_file_path, 
            rviz_config_path=args.rviz_config, 
            namespace="", 
-           basename="RHCViz_test")
+           basename="MPCViz_test")
     
-    rhcviz.run()
+    mpcviz.run()
     rclpy.shutdown()

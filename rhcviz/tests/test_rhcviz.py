@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from rhcviz.RHCViz import RHCViz
-from rhcviz.tests.urdf_gen_examples import RoboUrdfGen
+from mpcviz.MPCViz import MPCViz
+from mpcviz.tests.urdf_gen_examples import RoboUrdfGen
 
 import argparse
 
@@ -25,13 +25,13 @@ if __name__ == '__main__':
                   name= args.robot_type,
                   descr_path = args.dpath)
    
-   rhcviz = RHCViz(urdf_file_path=urdf_gen.urdf_path, 
+   mpcviz = MPCViz(urdf_file_path=urdf_gen.urdf_path, 
          rviz_config_path=args.rviz_config,
          namespace=args.robot_type, 
-         basename="RHCViz_test", 
+         basename="MPCViz_test", 
          rate = 100,
          use_only_collisions=False,
          check_jnt_names = False, # just to avoid manual publishing of joints (normaly should be set to true)       
          )
    
-   rhcviz.run()
+   mpcviz.run()

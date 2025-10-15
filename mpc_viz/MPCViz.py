@@ -12,8 +12,8 @@ import yaml
 import os
 import tempfile
 
-from mpcviz.utils.sys_utils import PathsGetter
-from mpcviz.utils.handshake import MPCVizHandshake
+from mpc_viz.utils.sys_utils import PathsGetter
+from mpc_viz.utils.handshake import MPCVizHandshake
 
 from std_msgs.msg import Float64MultiArray, String
 
@@ -21,9 +21,9 @@ import numpy as np
 
 from urdf_parser_py.urdf import URDF
 
-from mpcviz.utils.namings import NamingConventions
-from mpcviz.utils.string_list_encoding import StringArray
-from mpcviz.utils.ros_utils import start_robot_state_publisher
+from mpc_viz.utils.namings import NamingConventions
+from mpc_viz.utils.string_list_encoding import StringArray
+from mpc_viz.utils.ros_utils import start_robot_state_publisher
 from perf_sleep.pyperfsleep import PerfSleep
 
 import multiprocess as mp
@@ -754,7 +754,7 @@ class MPCViz():
         rclpy.spin_once(self.node, timeout_sec=3)
 
         while rclpy.ok():
-            # keep mpcviz alive
+            # keep mpc_vizalive
             rclpy.spin_once(self.node)
             PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
 
@@ -774,10 +774,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    mpcviz = MPCViz(urdf_file_path=args.urdf_file_path, 
+    mpc_viz= MPCViz(urdf_file_path=args.urdf_file_path, 
            rviz_config_path=args.rviz_config, 
            namespace="", 
            basename="MPCViz_test")
     
-    mpcviz.run()
+    mpc_viz.run()
     rclpy.shutdown()

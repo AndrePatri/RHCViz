@@ -8,8 +8,8 @@ from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from mpcviz.utils.handshake import MPCVizHandshake
-from mpcviz.utils.namings import NamingConventions
+from mpc_viz.utils.handshake import MPCVizHandshake
+from mpc_viz.utils.namings import NamingConventions
 
 from perf_sleep.pyperfsleep import PerfSleep
 

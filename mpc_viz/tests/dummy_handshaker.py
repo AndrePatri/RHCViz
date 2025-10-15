@@ -4,8 +4,8 @@ import rclpy
 from std_msgs.msg import String
 import argparse
 
-from mpcviz.utils.handshake import MPCVizHandshake
-from mpcviz.utils.namings import NamingConventions
+from mpc_viz.utils.handshake import MPCVizHandshake
+from mpc_viz.utils.namings import NamingConventions
 
 from perf_sleep.pyperfsleep import PerfSleep
 

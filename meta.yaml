@@ -1,5 +1,5 @@
 package:
-  name: kyonrlstepping 
+  name: mpc_viz 
   version: 0.1.0  
 
 source:
@@ -12,10 +12,6 @@ requirements:
   run:
     - python=3.10
 
-about:
-  home: https://github.com/AndrePatri/MPCHive
-  license: MIT
-  summary: Package implementing hybrid RL-MPC stepping strategies for a quadruped robot.
 extra:
   recipe-maintainers:  
     - AndrePatri

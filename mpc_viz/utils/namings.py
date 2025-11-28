@@ -23,6 +23,7 @@ class NamingConventions:
         self.RHC_STATE_TF_PREFIX_BASE = "rhc_node"
 
         self.RHC_REFS_NAME = "rhc_refs"
+        self.RHC_CONTACTS_NAME = "rhc_contacts"
         self.RHC_POSE_REF_NS_BASE = "rhc_pose_ref_rviz"
         self.RHC_TWIST_REF_NS_BASE = "rhc_twist_ref_rviz"
 
@@ -84,6 +85,17 @@ class NamingConventions:
                                 namespace=namespace)
 
         topic_name = f"/{global_ns}_{self.RHC_REFS_NAME}"
+
+        return topic_name
+    
+    def rhc_contacts_topicname(self, 
+                    basename: str, 
+                    namespace: str):
+
+        global_ns = self.global_ns(basename = basename, 
+                                namespace=namespace)
+
+        topic_name = f"/{global_ns}_{self.RHC_CONTACTS_NAME}"
 
         return topic_name
     

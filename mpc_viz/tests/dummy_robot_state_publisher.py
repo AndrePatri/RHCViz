@@ -57,8 +57,8 @@ class RobotStatePublisher():
             # Create a matrix with null base pose and random joint positions
             base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
             base_pose[6] = 1  # Ensure valid quaternion
-            joint_positions = np.random.uniform(-3.14, 3.14, (self.n_joints, 1))
-            matrix = np.vstack((np.tile(base_pose, (1, 1)).T, joint_positions))
+            jointpositions = np.random.uniform(-3.14, 3.14, (self.n_joints, 1))
+            matrix = np.vstack((np.tile(base_pose, (1, 1)).T, jointpositions))
 
             # Publish the matrix
             msg = Float64MultiArray(data=matrix.flatten())

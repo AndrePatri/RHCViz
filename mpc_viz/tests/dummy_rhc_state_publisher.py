@@ -90,8 +90,8 @@ class RHCPublisher():
                 base_poses.append(base_pose)
 
             # Stack all base poses and joint positions to form the matrix
-            joint_positions = np.random.uniform(-3.14, 3.14, (self.n_joints, self.n_nodes))
-            matrix = np.vstack((np.array(base_poses).T, joint_positions))
+            jointpositions = np.random.uniform(-3.14, 3.14, (self.n_joints, self.n_nodes))
+            matrix = np.vstack((np.array(base_poses).T, jointpositions))
 
             # Publish the matrix
             msg = Float64MultiArray(data=matrix.flatten())

@@ -25,6 +25,7 @@ from mpc_viz.utils.namings import NamingConventions
 from mpc_viz.utils.string_list_encoding import StringArray
 from mpc_viz.utils.ros_utils import start_robot_state_publisher
 import time
+from visualization_msgs.msg import Marker
 
 import multiprocess as mp
 
@@ -39,7 +40,8 @@ class MPCViz():
             use_only_collisions = False, 
             check_jnt_names = True,
             nodes_perc: int = 100,
-            base_link_name: str = "base_link"):
+            base_link_name: str = "base_link",
+            show_heightmap: bool = False):
         
         self.sleep_dt = 1/rate
 
@@ -76,6 +78,7 @@ class MPCViz():
         self.nodes_ns = []
         self.robot_description_name = self.names.robot_description_name(basename=self.basename, 
                                                     namespace=self.namespace)
+        self.show_heightmap = show_heightmap
         
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
@@ -123,11 +126,20 @@ class MPCViz():
 
         self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
+        self.heightmap_topicname = self.names.heightmap_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
         
         self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
 
         self.rsp_processes = []
+        self.heightmap_subscriber = None
+        if self.show_heightmap:
+            self.heightmap_subscriber = self.node.create_subscription(
+                Marker,
+                self.heightmap_topicname,
+                lambda msg: None,
+                10)
     
     def handshake(self):
         
@@ -367,6 +379,59 @@ class MPCViz():
 
         config['Visualization Manager']['Displays'].append(hl_ref_pose_config)
 
+        if self.show_heightmap:
+            topic_val = self.heightmap_topicname
+            if not topic_val:
+                topic_val = self.names.heightmap_topicname(basename=self.basename,
+                                                           namespace=self.namespace)
+            heightmap_disp = {
+                'Class': 'rviz_default_plugins/Marker',
+                'Name': 'Heightmap',
+                'Enabled': True,
+                'Queue Size': 1,
+                'Topic': {
+                    'Depth': 5,
+                    'Durability Policy': 'Volatile',
+                    'History Policy': 'Keep Last',
+                    'Reliability Policy': 'Reliable',
+                    'Value': topic_val
+                },
+                'Unreliable': False
+            }
+            config['Visualization Manager']['Displays'].append(heightmap_disp)
+
+        # Individual frame visuals for world, robot moving frame, and first RHC moving frame
+        frame_world = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'WorldFrame',
+            'Enabled': True,
+            'Reference Frame': 'world',
+            'Length': 0.27,
+            'Radius': 0.05
+        }
+        frame_robot = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'RobotMovingFrame',
+            'Enabled': True,
+            'Reference Frame': f"{self.state_tf_prefix}/{self.moving_robot_fname}",
+            'Length': 0.23,
+            'Radius': 0.03
+        }
+        frame_rhc = None
+        if len(self.nodes_tf_prefixes) > 0:
+            frame_rhc = {
+                'Class': 'rviz_default_plugins/Axes',
+                'Name': 'RHCFrame',
+                'Enabled': False,
+                'Reference Frame': f"{self.state_tf_prefix}/{self.moving_rhc_fname}",
+                'Length': 0.23,
+                'Radius': 0.03
+            }
+        config['Visualization Manager']['Displays'].append(frame_world)
+        config['Visualization Manager']['Displays'].append(frame_robot)
+        if frame_rhc is not None:
+            config['Visualization Manager']['Displays'].append(frame_rhc)
+
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
             yaml.safe_dump(config, file)
@@ -475,10 +540,10 @@ class MPCViz():
             # Extract base pose and joint positions for node i
 
             base_pose = matrix[0:7, self.rhc_indeces[i]]  # First 7 elements (position + quaternion)
-            joint_positions = matrix[7:, self.rhc_indeces[i]]  # Rest are joint positions
+            jointpositions = matrix[7:, self.rhc_indeces[i]]  # Rest are joint positions
 
             # Publish base pose and joint positions for this node
-            self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
+            self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, jointpositions)
     
     def rhc_refs_callback(self, msg):
 
@@ -540,12 +605,12 @@ class MPCViz():
             return
         
         base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)
-        joint_positions = matrix[7:, 0]  # Rest are joint positions
+        jointpositions = matrix[7:, 0]  # Rest are joint positions
 
         # Publish base pose and joint positions for this node
-        self.publish_robot_state_to_rviz(base_pose, joint_positions)
+        self.publish_robot_state_to_rviz(base_pose, jointpositions)
 
-    def publish_rhc_state_to_rviz(self, node_index, base_pose, joint_positions):
+    def publish_rhc_state_to_rviz(self, node_index, base_pose, jointpositions):
         """
         Publish rhc state to rviz
         """
@@ -588,7 +653,7 @@ class MPCViz():
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf
-        joint_state.position = joint_positions.tolist()
+        joint_state.position = jointpositions.tolist()
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
 
@@ -626,7 +691,7 @@ class MPCViz():
         self.publishers[pose_id].publish(pose_msg)
         self.publishers[twist_id].publish(twist_msg)
 
-    def publish_robot_state_to_rviz(self, base_pose, joint_positions):
+    def publish_robot_state_to_rviz(self, base_pose, jointpositions):
         """
         Publish robot state to rviz
         """
@@ -668,7 +733,7 @@ class MPCViz():
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf
-        joint_state.position = joint_positions.flatten().tolist()
+        joint_state.position = jointpositions.flatten().tolist()
 
         self.publishers[self.state_ns].publish(joint_state)
 

@@ -47,6 +47,7 @@ Visualization Manager:
       Plane Cell Count: 100
       Reference Frame: world
       Value: true
+
   Enabled: true
   Global Options:
     Background Color: 220; 218; 214

@@ -400,6 +400,38 @@ class MPCViz():
             }
             config['Visualization Manager']['Displays'].append(heightmap_disp)
 
+        # Individual frame visuals for world, robot moving frame, and first RHC moving frame
+        frame_world = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'WorldFrame',
+            'Enabled': True,
+            'Reference Frame': 'world',
+            'Length': 0.27,
+            'Radius': 0.05
+        }
+        frame_robot = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'RobotMovingFrame',
+            'Enabled': True,
+            'Reference Frame': f"{self.state_tf_prefix}/{self.moving_robot_fname}",
+            'Length': 0.23,
+            'Radius': 0.03
+        }
+        frame_rhc = None
+        if len(self.nodes_tf_prefixes) > 0:
+            frame_rhc = {
+                'Class': 'rviz_default_plugins/Axes',
+                'Name': 'RHCFrame',
+                'Enabled': False,
+                'Reference Frame': f"{self.state_tf_prefix}/{self.moving_rhc_fname}",
+                'Length': 0.23,
+                'Radius': 0.03
+            }
+        config['Visualization Manager']['Displays'].append(frame_world)
+        config['Visualization Manager']['Displays'].append(frame_robot)
+        if frame_rhc is not None:
+            config['Visualization Manager']['Displays'].append(frame_rhc)
+
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
             yaml.safe_dump(config, file)

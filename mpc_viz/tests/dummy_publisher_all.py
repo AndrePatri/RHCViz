@@ -9,10 +9,10 @@ def main(robot_type, n_rhc_nodes):
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     # Define the commands to run each script with full path
-    handshaker_cmd = ['python3', os.path.join(dir_path, 'dummy_handshaker.py'), str(n_rhc_nodes), robot_type]
-    rhc_state_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_rhc_state_publisher.py'), robot_type]
-    robot_state_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_robot_state_publisher.py'), robot_type]
-    rhc_ref_pub_cmd = ['python3', os.path.join(dir_path, 'dummy_rhc_ref_state_publisher.py'), robot_type]
+    handshaker_cmd = ['python3', os.path.join(dir_path, 'utils/dummy_handshaker.py'), str(n_rhc_nodes), robot_type]
+    rhc_state_pub_cmd = ['python3', os.path.join(dir_path, 'utils/dummy_rhc_state_publisher.py'), robot_type]
+    robot_state_pub_cmd = ['python3', os.path.join(dir_path, 'utils/dummy_robot_state_publisher.py'), robot_type]
+    rhc_ref_pub_cmd = ['python3', os.path.join(dir_path, 'utils/dummy_rhc_ref_state_publisher.py'), robot_type]
 
     # Start each script as a subprocess
 

@@ -9,7 +9,7 @@ from std_msgs.msg import Float64MultiArray
 import numpy as np
 
 from mpc_viz.utils.namings import NamingConventions
-from mpc_viz.tests.sleep_utils import perf_sleep
+import time
 
 class RobotStatePublisher():
 
@@ -63,7 +63,7 @@ class RobotStatePublisher():
 
             self.publisher.publish(msg)
             # rclpy.spin_once(self.node)
-            perf_sleep(self.sleep_dt)
+            time.sleep(self.sleep_dt)
 
 def main(args=None):
 

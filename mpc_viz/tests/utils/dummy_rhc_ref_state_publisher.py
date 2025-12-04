@@ -8,9 +8,8 @@ from rclpy.qos import QoSProfile
 from std_msgs.msg import Float64MultiArray
 import numpy as np
 
-from mpc_viz.utils.handshake import MPCVizHandshake
+import time
 from mpc_viz.utils.namings import NamingConventions
-from mpc_viz.tests.sleep_utils import perf_sleep
 
 class RHCPublisher():
 
@@ -73,7 +72,8 @@ class RHCPublisher():
             self.publisher.publish(msg_refs)
             self.publisher_high_lev_refs.publish(msg_refs_hl)
 
-            perf_sleep(self.sleep_dt)
+            time.sleep(self.sleep_dt)
+
 
 def main(args=None):
 

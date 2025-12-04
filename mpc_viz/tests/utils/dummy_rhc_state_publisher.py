@@ -10,7 +10,7 @@ import numpy as np
 
 from mpc_viz.utils.handshake import MPCVizHandshake
 from mpc_viz.utils.namings import NamingConventions
-from mpc_viz.tests.sleep_utils import perf_sleep
+import time
 
 class RHCPublisher():
 
@@ -58,7 +58,7 @@ class RHCPublisher():
             
             rclpy.spin_once(self.node)
 
-            perf_sleep(self.sleep_dt)
+            time.sleep(self.sleep_dt)
 
         if self.handshaker.n_nodes is None:
 
@@ -95,7 +95,7 @@ class RHCPublisher():
 
             self.publisher.publish(msg)
             # rclpy.spin_once(self.node)
-            perf_sleep(self.sleep_dt)
+            time.sleep(self.sleep_dt)
 
 def main(args=None):
 

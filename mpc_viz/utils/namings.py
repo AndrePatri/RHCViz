@@ -30,6 +30,7 @@ class NamingConventions:
         self.HIGH_LEV_REFS_NAME = "hl_refs"
         self.HIGH_LEV_POSE_REF_NS_BASE = "hl_pose_ref_rviz"
         self.HIGH_LEV_TWIST_REF_NS_BASE = "hl_twist_ref_rviz"
+        self.HEIGHTMAP_NAME = "heightmap"
 
     def global_ns(self, 
             basename: str, 
@@ -107,6 +108,17 @@ class NamingConventions:
                                 namespace=namespace)
 
         topic_name = f"/{global_ns}_{self.HIGH_LEV_REFS_NAME}"
+
+        return topic_name
+
+    def heightmap_topicname(self,
+                        basename: str,
+                        namespace: str):
+
+        global_ns = self.global_ns(basename = basename,
+                                namespace=namespace)
+
+        topic_name = f"/{global_ns}_{self.HEIGHTMAP_NAME}"
 
         return topic_name
 

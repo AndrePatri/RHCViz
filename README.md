@@ -58,9 +58,10 @@ python3 mpc_viz/tests/test_rhcviz.py \
 5. **Optional overlays:** publish references (`_rhc_refs`, `_hl_refs`), contact wrenches (`_rhc_contacts`), or `/clock` for bagging/synchronization.
 6. **Tune visualization:** pass `nodes_perc` to MPCViz to sub-sample horizons, or disable joint-name checking via `check_jnt_names=False` if your bridge guarantees correct ordering.
 
-## Media
+## Media 
+Usage example:
 
-A short RViz capture (GIF, <4 MB) can be embedded here to showcase the UI once the source video is locally available. Feel free to contribute the asset or provide a downloadable copy so it can be converted and added to this README.
+![MPCViz demo](docs/mpcviz_example.gif)
 
 ## Example framework
 

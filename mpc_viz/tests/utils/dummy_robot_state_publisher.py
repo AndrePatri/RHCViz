@@ -38,7 +38,7 @@ class RobotStatePublisher():
                             self.topic_name, 
                             qos_profile=self._qos_settings)
         
-        self.sleep_dt = 0.1  # s
+        self.sleep_dt = 0.3  # s
         # self.rate = self.create_rate(self.rate_value)
 
         # Set number of joints based on robot type
@@ -53,6 +53,7 @@ class RobotStatePublisher():
             
             # Create a matrix with null base pose and random joint positions
             base_pose = np.zeros(7)  # Null pose (3 pos + 4 quat)
+            base_pose[0]=-1.5
             base_pose[6] = 1  # Ensure valid quaternion
             joint_positions = np.random.uniform(-3.14, 3.14, (self.n_joints, 1))
             matrix = np.vstack((np.tile(base_pose, (1, 1)).T, joint_positions))

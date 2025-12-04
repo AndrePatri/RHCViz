@@ -42,7 +42,7 @@ class RHCPublisher():
                         self.topic_name_high_lev_refs, 
                         qos_profile=self._qos_settings)
 
-        self.sleep_dt = 0.1  # s
+        self.sleep_dt = 0.3  # s
         # self.rate = self.create_rate(self.rate_value)
 
     def publish_refs(self):

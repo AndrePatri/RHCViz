@@ -6,8 +6,7 @@ import argparse
 
 from mpc_viz.utils.handshake import MPCVizHandshake
 from mpc_viz.utils.namings import NamingConventions
-
-from perf_sleep.pyperfsleep import PerfSleep
+from mpc_viz.tests.sleep_utils import perf_sleep
 
 def publish_handshake(n_rhc_nodes: int, robot_type: str):
     rclpy.init()
@@ -23,8 +22,6 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
     # Define the rate of publishing handshake info (low rate)
     
     sleep_dt = 0.1
-    perf_timer = PerfSleep()
-
     handshake = MPCVizHandshake(handshake_topic=handshake_topicname, 
                             node=node,
                             is_server=True)
@@ -38,7 +35,7 @@ def publish_handshake(n_rhc_nodes: int, robot_type: str):
             # node.get_logger().info(f"Publishing handshake data: n_robots = {n_rhc_nodes}")
 
             # Sleep for the rate duration
-            perf_timer.thread_sleep(int((sleep_dt) * 1e+9)) 
+            perf_sleep(sleep_dt)
 
     finally:
         # Cleanup when the node is shutting down
@@ -56,6 +53,3 @@ if __name__ == '__main__':
         publish_handshake(n_rhc_nodes=args.n_rhc_nodes, robot_type=args.robot_type)
     except KeyboardInterrupt:
         pass
-
-
-

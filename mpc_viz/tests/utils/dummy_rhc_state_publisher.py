@@ -42,7 +42,7 @@ class RHCPublisher():
         self.publisher = self.node.create_publisher(Float64MultiArray, 
                         self.topic_name, 
                         qos_profile=self._qos_settings)
-        self.sleep_dt = 0.1  # s
+        self.sleep_dt = 0.3  # s
         # self.rate = self.create_rate(self.rate_value)
 
         # Set number of joints based on robot type
@@ -121,3 +121,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

@@ -42,7 +42,7 @@ class RoboUrdfGen(UrdfGenerator):
         cmds_aux = []
         cmds["centauro"] = cmds_aux
 
-        cmds_aux.append("centauro_root:=" + root)
+        cmds_aux.append("root:=" + root)
         cmds_aux.append("legs:=true")
         cmds_aux.append("big_wheel:=true")
         cmds_aux.append("upper_body:=true")

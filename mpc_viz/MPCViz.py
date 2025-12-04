@@ -24,7 +24,7 @@ from urdf_parser_py.urdf import URDF
 from mpc_viz.utils.namings import NamingConventions
 from mpc_viz.utils.string_list_encoding import StringArray
 from mpc_viz.utils.ros_utils import start_robot_state_publisher
-from perf_sleep.pyperfsleep import PerfSleep
+import time
 
 import multiprocess as mp
 
@@ -137,8 +137,8 @@ class MPCViz():
             print("Waiting for handshake data...")
 
             rclpy.spin_once(self.node)
-
-            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            
+            time.sleep(self.sleep_dt)
 
         if self.handshaker.n_nodes is None:
 
@@ -756,7 +756,7 @@ class MPCViz():
         while rclpy.ok():
             # keep mpc_vizalive
             rclpy.spin_once(self.node)
-            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            time.sleep(self.sleep_dt)
 
         rviz_process.terminate()
 

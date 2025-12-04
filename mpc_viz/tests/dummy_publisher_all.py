@@ -38,4 +38,3 @@ if __name__ == '__main__':
         raise Exception("No robot_type provided")
 
     main(args.robot_type, args.n_rhc_nodes)
-

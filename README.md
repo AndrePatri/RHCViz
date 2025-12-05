@@ -59,7 +59,7 @@ python3 mpc_viz/tests/test_rhcviz.py \
 6. **Tune visualization:** pass `nodes_perc` to MPCViz to sub-sample horizons, or disable joint-name checking via `check_jnt_names=False` if your bridge guarantees correct ordering.
 
 ## Media 
-Usage example:
+Usage example with a real MPC:
 
 ![MPCViz demo](docs/mpcviz_example.gif)
 

@@ -2,6 +2,10 @@
 
 MPCViz is a lightweight RViz2 front-end for inspecting receding-horizon control (RHC) plans and measured robot states in real time. The library focuses solely on visualization: you decide how to produce and publish data, MPCViz subscribes to a well-defined set of topics, and RViz renders the planner horizon, contacts, and reference trajectories.
 
+<p align="center">
+  <img src="docs/mpcviz_example.gif" alt="MPCHive GUI example" width="500">
+</p>
+
 ## Dependencies
 
 - ROS 2 (tested on [Humble](https://docs.ros.org/en/humble/Installation.html) and [Jazzy](https://docs.ros.org/en/jazzy/Installation.html); both ship RViz2)
@@ -57,11 +61,6 @@ python3 mpc_viz/tests/test_rhcviz.py \
 4. **Stream measured robot state:** same format, but only one node.
 5. **Optional overlays:** publish references (`_rhc_refs`, `_hl_refs`), contact wrenches (`_rhc_contacts`), or `/clock` for bagging/synchronization.
 6. **Tune visualization:** pass `nodes_perc` to MPCViz to sub-sample horizons, or disable joint-name checking via `check_jnt_names=False` if your bridge guarantees correct ordering.
-
-## Media 
-Usage example with a real MPC:
-
-![MPCViz demo](docs/mpcviz_example.gif)
 
 ## Example framework
 

@@ -4,6 +4,7 @@ import random
 from sensor_msgs.msg import JointState
 from urdf_parser_py.urdf import URDF
 from geometry_msgs.msg import TransformStamped, PoseStamped, TwistStamped
+from visualization_msgs.msg import Marker
 import tf2_ros
 
 import yaml
@@ -34,7 +35,8 @@ class MPCViz:
             use_only_collisions = False, 
             check_jnt_names = True,
             nodes_perc: int = 100,
-            base_link_name: str = "base_link"):
+            base_link_name: str = "base_link",
+            show_heightmap: bool = False):
         
         self._check_jnt_names = check_jnt_names
 
@@ -54,6 +56,7 @@ class MPCViz:
         self.baselink_name = base_link_name
         self.moving_robot_fname = "moving_frame_robot"
         self.moving_rhc_fname = "moving_frame_rhc"
+        self.show_heightmap = show_heightmap
             
         self.rate = rate
 
@@ -110,11 +113,14 @@ class MPCViz:
                                                     namespace=self.namespace)
         self.hl_refs_topicname = self.names.hl_refs_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
+        self.heightmap_topicname = self.names.heightmap_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
         
         self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, 
                                                     namespace=self.namespace)
 
         self.rsp_processes = []
+        self.heightmap_subscriber = None
 
         self.handshaker = MPCVizHandshake(self.handshake_topicname, 
                                     is_server=False)
@@ -301,6 +307,19 @@ class MPCViz:
         }
 
         config['Visualization Manager']['Displays'].append(hl_ref_pose_config)
+
+        if self.show_heightmap:
+            topic_val = self.heightmap_topicname
+            heightmap_disp = {
+                'Class': 'rviz/Marker',
+                'Name': 'Heightmap',
+                'Enabled': True,
+                'Marker Topic': topic_val,
+                'Namespaces': {},
+                'Queue Size': 1,
+                'Unreliable': False
+            }
+            config['Visualization Manager']['Displays'].append(heightmap_disp)
 
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
@@ -690,6 +709,10 @@ class MPCViz:
         self.initalize_rhc_refs_subscriber(topic_name=self.rhc_refs_topicname)
         self.initalize_hl_refs_subscriber(topic_name=self.hl_refs_topicname)
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
+        if self.show_heightmap:
+            self.heightmap_subscriber = rospy.Subscriber(self.heightmap_topicname,
+                Marker,
+                lambda msg: None)
 
         # give some time for the robot_state_publishers to start
         rospy.sleep(3)

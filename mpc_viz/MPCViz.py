@@ -536,20 +536,21 @@ class MPCViz:
 
         self.tf_broadcaster.sendTransform(transform)
         
-        # publish a frame which is below the robot base, on the ground and world oriented
-        moving_frame_transform = TransformStamped()
-        moving_frame_transform.header.stamp = rospy.Time.now()
-        moving_frame_transform.header.frame_id = 'world'
-        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
-        moving_frame_transform.transform.translation.x = base_pose[0]
-        moving_frame_transform.transform.translation.y = base_pose[1]
-        moving_frame_transform.transform.translation.z = 0.0
-        moving_frame_transform.transform.rotation.x = 0.0
-        moving_frame_transform.transform.rotation.y = 0.0
-        moving_frame_transform.transform.rotation.z = 0.0
-        moving_frame_transform.transform.rotation.w = 1.0
+        # publish MPC moving frame only from the first node to avoid duplicate TF updates
+        if node_index == 0:
+            moving_frame_transform = TransformStamped()
+            moving_frame_transform.header.stamp = rospy.Time.now()
+            moving_frame_transform.header.frame_id = 'world'
+            moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
+            moving_frame_transform.transform.translation.x = base_pose[0]
+            moving_frame_transform.transform.translation.y = base_pose[1]
+            moving_frame_transform.transform.translation.z = 0.0
+            moving_frame_transform.transform.rotation.x = 0.0
+            moving_frame_transform.transform.rotation.y = 0.0
+            moving_frame_transform.transform.rotation.z = 0.0
+            moving_frame_transform.transform.rotation.w = 1.0
 
-        self.tf_broadcaster.sendTransform(moving_frame_transform)
+            self.tf_broadcaster.sendTransform(moving_frame_transform)
 
         # Publish joint positions
         joint_state = JointState()
@@ -620,7 +621,7 @@ class MPCViz:
         moving_frame_transform = TransformStamped()
         moving_frame_transform.header.stamp = rospy.Time.now()
         moving_frame_transform.header.frame_id = 'world'
-        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
+        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_robot_fname}'
         moving_frame_transform.transform.translation.x = base_pose[0]
         moving_frame_transform.transform.translation.y = base_pose[1]
         moving_frame_transform.transform.translation.z = 0.0

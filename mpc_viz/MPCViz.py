@@ -24,29 +24,31 @@ from urdf_parser_py.urdf import URDF
 from mpc_viz.utils.namings import NamingConventions
 from mpc_viz.utils.string_list_encoding import StringArray
 from mpc_viz.utils.ros_utils import start_robot_state_publisher
-from perf_sleep.pyperfsleep import PerfSleep
+import time
+from visualization_msgs.msg import Marker
 
 import multiprocess as mp
 
 class MPCViz():
 
-    def __init__(self, 
-            urdf_file_path: str, 
-            rviz_config_path=None, 
-            namespace: str = "", 
-            basename: str = "MPCViz", 
+    def __init__(self,
+            urdf_file_path: str,
+            rviz_config_path=None,
+            namespace: str = "",
+            basename: str = "MPCViz",
             rate: float = 100,
-            use_only_collisions = False, 
+            use_only_collisions = False,
             check_jnt_names = True,
             nodes_perc: int = 100,
-            base_link_name: str = "base_link"):
-        
+            base_link_name: str = "base_link",
+            show_heightmap: bool = False):
+
         self.sleep_dt = 1/rate
 
         self._check_jnt_names = check_jnt_names
-        
+
         self.syspaths = PathsGetter()
-        
+
         self.names = NamingConventions()
 
         rclpy.init()
@@ -54,7 +56,7 @@ class MPCViz():
         self.node = rclpy.create_node(self.names.global_ns(basename=basename,
                                     namespace=namespace)
                             + "MPCViz")
-        self.rate = self.node.create_rate(rate) 
+        self.rate = self.node.create_rate(rate)
 
         self.string_list_decoder = StringArray()
 
@@ -74,9 +76,10 @@ class MPCViz():
         self.rhc_indeces = [] # might be a subset of [0, ..., self.n_rhc_nodes - 1]
 
         self.nodes_ns = []
-        self.robot_description_name = self.names.robot_description_name(basename=self.basename, 
+        self.robot_description_name = self.names.robot_description_name(basename=self.basename,
                                                     namespace=self.namespace)
-        
+        self.show_heightmap = show_heightmap
+
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
         self.rhc_refs_subscriber = None
@@ -86,99 +89,108 @@ class MPCViz():
 
         # description for all
         self.nodes_tf_prefixes = []
-        
-        self.state_ns = self.names.robot_state_ns(basename=self.basename, 
+
+        self.state_ns = self.names.robot_state_ns(basename=self.basename,
                                                 namespace=self.namespace)
-        self.rhc_pose_ref_ns = self.names.rhc_pose_ref_ns(basename=self.basename, 
+        self.rhc_pose_ref_ns = self.names.rhc_pose_ref_ns(basename=self.basename,
                                                 namespace=self.namespace)
-        self.rhc_twist_ref_ns = self.names.rhc_twist_ref_ns(basename=self.basename, 
+        self.rhc_twist_ref_ns = self.names.rhc_twist_ref_ns(basename=self.basename,
                                                 namespace=self.namespace)
-        self.hl_pose_ref_ns = self.names.hl_pose_ref_ns(basename=self.basename, 
+        self.hl_pose_ref_ns = self.names.hl_pose_ref_ns(basename=self.basename,
                                                 namespace=self.namespace)
-        self.hl_twist_ref_ns = self.names.hl_twist_ref_ns(basename=self.basename, 
+        self.hl_twist_ref_ns = self.names.hl_twist_ref_ns(basename=self.basename,
                                                 namespace=self.namespace)
 
-        self.state_tf_prefix = self.names.robot_state_tf_pref(basename=self.basename, 
+        self.state_tf_prefix = self.names.robot_state_tf_pref(basename=self.basename,
                                                 namespace=self.namespace)
 
         self.urdf_file_path = urdf_file_path
         self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
         self.joint_names_urdf, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
-    
+
         self.joint_names_rhc = []
         self.joint_names_robot = []
         self.robot_joint_names_acquired = False
         self.joint_names_rhc_acquired = False
-        self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename, 
+        self.robot_joint_names_topicname = self.names.robot_jntnames(basename=self.basename,
                                                     namespace=self.namespace)
-        self.joint_names_rhc_topicname = self.names.rhc_jntnames(basename=self.basename, 
+        self.joint_names_rhc_topicname = self.names.rhc_jntnames(basename=self.basename,
                                                     namespace=self.namespace)
-        self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename, 
+        self.rhc_state_topicname = self.names.rhc_q_topicname(basename=self.basename,
                                                     namespace=self.namespace)
-        self.rhc_refs_topicname = self.names.rhc_refs_topicname(basename=self.basename, 
+        self.rhc_refs_topicname = self.names.rhc_refs_topicname(basename=self.basename,
                                                     namespace=self.namespace)
-        self.hl_refs_topicname = self.names.hl_refs_topicname(basename=self.basename, 
+        self.hl_refs_topicname = self.names.hl_refs_topicname(basename=self.basename,
                                                     namespace=self.namespace)
 
-        self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename, 
+        self.robot_state_topicname = self.names.robot_q_topicname(basename=self.basename,
                                                     namespace=self.namespace)
-        
-        self.handshake_topicname = self.names.handshake_topicname(basename=self.basename, 
+        self.heightmap_topicname = self.names.heightmap_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
+
+        self.handshake_topicname = self.names.handshake_topicname(basename=self.basename,
                                                     namespace=self.namespace)
 
         self.rsp_processes = []
-    
+        self.heightmap_subscriber = None
+        if self.show_heightmap:
+            self.heightmap_subscriber = self.node.create_subscription(
+                Marker,
+                self.heightmap_topicname,
+                lambda msg: None,
+                10)
+
     def handshake(self):
-        
+
         # Wait for handshake to complete
         while rclpy.ok() and not self.handshaker.handshake_done():
-            
+
             print("Waiting for handshake data...")
 
             rclpy.spin_once(self.node)
 
-            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            time.sleep(self.sleep_dt)
 
         if self.handshaker.n_nodes is None:
 
             print("Handshake not completed. Exiting.")
 
             return
-        
+
         self.n_rhc_nodes = self.handshaker.n_nodes
-    
+
     def calculate_nodes_indices(self, total_nodes, percentage):
         """Calculate and return indices of nodes to display."""
         if percentage >= 100 or total_nodes <= 1:
             return list(range(total_nodes))
-        
+
         num_nodes_to_display = max(1, total_nodes * percentage // 100)
         step = total_nodes / float(num_nodes_to_display)
         return [int(step * i) for i in range(num_nodes_to_display)]
-    
+
     def finalize_init(self):
 
         # to be called after all the handshake info is
         # available
 
         # Calculate indices of nodes to display
-        self.rhc_indeces = self.calculate_nodes_indices(self.n_rhc_nodes, 
+        self.rhc_indeces = self.calculate_nodes_indices(self.n_rhc_nodes,
                                                 self.nodes_perc)
 
         self.n_rhc_selected_nodes = len(self.rhc_indeces)
         for i in range(0, self.n_rhc_nodes):
-            self.nodes_ns.append(self.names.rhc_state_ns(basename=self.basename, 
-                                                    namespace=self.namespace, 
+            self.nodes_ns.append(self.names.rhc_state_ns(basename=self.basename,
+                                                    namespace=self.namespace,
                                                     index=i))
-            self.nodes_tf_prefixes.append(self.names.rhc_state_tf_pref(basename=self.basename, 
-                                                    namespace=self.namespace, 
+            self.nodes_tf_prefixes.append(self.names.rhc_state_tf_pref(basename=self.basename,
+                                                    namespace=self.namespace,
                                                     index=i))
 
     def rviz_config_path_default(self):
 
         return self.syspaths.DEFAULT_RVIZ_CONFIG_PATH
-    
+
     def read_urdf_file(self, urdf_file_path):
         """
         Read the URDF file from the given path and return its content as a string.
@@ -198,10 +210,10 @@ class MPCViz():
             config = yaml.safe_load(file)
 
         # Transparency level for RHC nodes
-        alpha_value_start = 0.9  
+        alpha_value_start = 0.9
         alpha_value_end = 0.2
 
-        import math  
+        import math
         alpha_decay_rate = -math.log(alpha_value_end / alpha_value_start) / len(self.rhc_indeces)
 
         # default to use the robot's moving frame as fixed frame
@@ -209,7 +221,7 @@ class MPCViz():
 
         # add robot models for each node
         for i in range(len(self.rhc_indeces)):
-            
+
             alpha_value = alpha_value_start * math.exp(-alpha_decay_rate * i)
 
             rhcnode_config = {
@@ -367,12 +379,65 @@ class MPCViz():
 
         config['Visualization Manager']['Displays'].append(hl_ref_pose_config)
 
+        if self.show_heightmap:
+            topic_val = self.heightmap_topicname
+            if not topic_val:
+                topic_val = self.names.heightmap_topicname(basename=self.basename,
+                                                           namespace=self.namespace)
+            heightmap_disp = {
+                'Class': 'rviz_default_plugins/Marker',
+                'Name': 'Heightmap',
+                'Enabled': True,
+                'Queue Size': 1,
+                'Topic': {
+                    'Depth': 5,
+                    'Durability Policy': 'Volatile',
+                    'History Policy': 'Keep Last',
+                    'Reliability Policy': 'Reliable',
+                    'Value': topic_val
+                },
+                'Unreliable': False
+            }
+            config['Visualization Manager']['Displays'].append(heightmap_disp)
+
+        # Individual frame visuals for world, robot moving frame, and first RHC moving frame
+        frame_world = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'WorldFrame',
+            'Enabled': True,
+            'Reference Frame': 'world',
+            'Length': 0.27,
+            'Radius': 0.05
+        }
+        frame_robot = {
+            'Class': 'rviz_default_plugins/Axes',
+            'Name': 'RobotMovingFrame',
+            'Enabled': True,
+            'Reference Frame': f"{self.state_tf_prefix}/{self.moving_robot_fname}",
+            'Length': 0.23,
+            'Radius': 0.03
+        }
+        frame_rhc = None
+        if len(self.nodes_tf_prefixes) > 0:
+            frame_rhc = {
+                'Class': 'rviz_default_plugins/Axes',
+                'Name': 'RHCFrame',
+                'Enabled': False,
+                'Reference Frame': f"{self.state_tf_prefix}/{self.moving_rhc_fname}",
+                'Length': 0.23,
+                'Radius': 0.03
+            }
+        config['Visualization Manager']['Displays'].append(frame_world)
+        config['Visualization Manager']['Displays'].append(frame_robot)
+        if frame_rhc is not None:
+            config['Visualization Manager']['Displays'].append(frame_rhc)
+
         temp_config_path = tempfile.NamedTemporaryFile(delete=False, suffix='.rviz').name
         with open(temp_config_path, 'w') as file:
             yaml.safe_dump(config, file)
-        
+
         return temp_config_path
-    
+
     def get_joint_info(self, urdf_robot):
         """
         Parse the URDF model and extract joint names and their state dimensions.
@@ -388,7 +453,7 @@ class MPCViz():
 
         return joint_names, state_dimensions
 
-    def initialize_joint_names_subscribers(self, 
+    def initialize_joint_names_subscribers(self,
                         robot_topic_name: str,
                         rhc_topic_name: str):
         """
@@ -396,18 +461,18 @@ class MPCViz():
         """
         self.robot_jnt_names_subscriber = self.node.create_subscription(
             String, robot_topic_name, self.robot_jnt_names_callback, 10)
-        
+
         self.rhc_jnt_names_subscriber = self.node.create_subscription(
             String, rhc_topic_name, self.rhc_jnt_names_callback, 10)
-        
-    def initialize_rhc_subscriber(self, 
+
+    def initialize_rhc_subscriber(self,
                         topic_name: str):
         """
         Initialize the subscriber to listen to the rhc state data.
         """
         self.rhc_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.rhc_state_callback, 10)
-    
+
     def initalize_rhc_refs_subscriber(self,
                         topic_name: str):
 
@@ -426,28 +491,28 @@ class MPCViz():
         self.hl_refs_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.hl_refs_callback, 10)
 
-    def initialize_robot_state_subscriber(self, 
+    def initialize_robot_state_subscriber(self,
                         topic_name: str):
         """
         Initialize the subscriber to listen to robot state data.
         """
         self.robot_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.robot_state_callback, 10)
-    
+
     def robot_jnt_names_callback(self, msg):
-        
+
         if not self.robot_joint_names_acquired:
 
-            self.joint_names_robot = self.string_list_decoder.decode(msg.data) 
-            
+            self.joint_names_robot = self.string_list_decoder.decode(msg.data)
+
             self.robot_joint_names_acquired = True
-    
+
     def rhc_jnt_names_callback(self, msg):
-        
+
         if not self.joint_names_rhc_acquired:
 
-            self.joint_names_rhc = self.string_list_decoder.decode(msg.data) 
-            
+            self.joint_names_rhc = self.string_list_decoder.decode(msg.data)
+
             self.joint_names_rhc_acquired = True
 
     def rhc_state_callback(self, msg):
@@ -469,17 +534,17 @@ class MPCViz():
             print(f"rhc_state_callback: Number available rhc nodes in the message {n_cols} " + \
                     f"does not match {self.n_rhc_nodes}, which is the expected one.")
             return
-        
+
         for i in range(self.n_rhc_selected_nodes):
 
             # Extract base pose and joint positions for node i
 
             base_pose = matrix[0:7, self.rhc_indeces[i]]  # First 7 elements (position + quaternion)
-            joint_positions = matrix[7:, self.rhc_indeces[i]]  # Rest are joint positions
+            jointpositions = matrix[7:, self.rhc_indeces[i]]  # Rest are joint positions
 
             # Publish base pose and joint positions for this node
-            self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, joint_positions)
-    
+            self.publish_rhc_state_to_rviz(self.rhc_indeces[i], base_pose, jointpositions)
+
     def rhc_refs_callback(self, msg):
 
         # Convert data to numpy array and reshape
@@ -538,14 +603,14 @@ class MPCViz():
             print(f"robot_state_callback: received a robot state matrix with n. cols {n_cols}. " + \
                     f"But the expected n. cols is {1}")
             return
-        
+
         base_pose = matrix[0:7, 0]  # First 7 elements (position + quaternion)
-        joint_positions = matrix[7:, 0]  # Rest are joint positions
+        jointpositions = matrix[7:, 0]  # Rest are joint positions
 
         # Publish base pose and joint positions for this node
-        self.publish_robot_state_to_rviz(base_pose, joint_positions)
+        self.publish_robot_state_to_rviz(base_pose, jointpositions)
 
-    def publish_rhc_state_to_rviz(self, node_index, base_pose, joint_positions):
+    def publish_rhc_state_to_rviz(self, node_index, base_pose, jointpositions):
         """
         Publish rhc state to rviz
         """
@@ -565,20 +630,22 @@ class MPCViz():
 
         self.tf_broadcaster.sendTransform(transform)
 
-        # publish a frame which is below the robot base, on the ground and world oriented
-        moving_frame_transform = TransformStamped()
-        moving_frame_transform.header.stamp = now.to_msg()
-        moving_frame_transform.header.frame_id = 'world'
-        moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
-        moving_frame_transform.transform.translation.x = base_pose[0]
-        moving_frame_transform.transform.translation.y = base_pose[1]
-        moving_frame_transform.transform.translation.z = 0.0
-        moving_frame_transform.transform.rotation.x = 0.0
-        moving_frame_transform.transform.rotation.y = 0.0
-        moving_frame_transform.transform.rotation.z = 0.0
-        moving_frame_transform.transform.rotation.w = 1.0
+        # Publish moving_frame_rhc only once per callback cycle to avoid
+        # multiple transforms for the same child frame timestamp.
+        if len(self.rhc_indeces) == 0 or node_index == self.rhc_indeces[0]:
+            moving_frame_transform = TransformStamped()
+            moving_frame_transform.header.stamp = now.to_msg()
+            moving_frame_transform.header.frame_id = 'world'
+            moving_frame_transform.child_frame_id = f'{self.state_tf_prefix}/{self.moving_rhc_fname}'
+            moving_frame_transform.transform.translation.x = base_pose[0]
+            moving_frame_transform.transform.translation.y = base_pose[1]
+            moving_frame_transform.transform.translation.z = 0.0
+            moving_frame_transform.transform.rotation.x = 0.0
+            moving_frame_transform.transform.rotation.y = 0.0
+            moving_frame_transform.transform.rotation.z = 0.0
+            moving_frame_transform.transform.rotation.w = 1.0
 
-        self.tf_broadcaster.sendTransform(moving_frame_transform)
+            self.tf_broadcaster.sendTransform(moving_frame_transform)
 
         # Publish joint positions
         joint_state = JointState()
@@ -588,7 +655,7 @@ class MPCViz():
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf
-        joint_state.position = joint_positions.tolist()
+        joint_state.position = jointpositions.tolist()
 
         self.publishers[self.nodes_ns[node_index]].publish(joint_state)
 
@@ -626,7 +693,7 @@ class MPCViz():
         self.publishers[pose_id].publish(pose_msg)
         self.publishers[twist_id].publish(twist_msg)
 
-    def publish_robot_state_to_rviz(self, base_pose, joint_positions):
+    def publish_robot_state_to_rviz(self, base_pose, jointpositions):
         """
         Publish robot state to rviz
         """
@@ -668,7 +735,7 @@ class MPCViz():
         else:
             # we use the one parsed from the urdf (dangerous)
             joint_state.name = self.joint_names_urdf
-        joint_state.position = joint_positions.flatten().tolist()
+        joint_state.position = jointpositions.flatten().tolist()
 
         self.publishers[self.state_ns].publish(joint_state)
 
@@ -680,12 +747,12 @@ class MPCViz():
         return rhc_names_ok and robot_names_ok
 
     def run(self):
-        
+
         # mp context for child processes
         ctx = mp.get_context('forkserver')
         # ctx = mp.get_context('spawn')
 
-        self.handshaker = MPCVizHandshake(handshake_topic=self.handshake_topicname, 
+        self.handshaker = MPCVizHandshake(handshake_topic=self.handshake_topicname,
                                     is_server=False,
                                     node=self.node)
 
@@ -704,23 +771,23 @@ class MPCViz():
             self.node.get_logger().info("Waiting for robot and rhc joint names data...")
             rclpy.spin_once(self.node)
 
-        # check consistency between joint list parsed from urdf and the one 
+        # check consistency between joint list parsed from urdf and the one
         # provided by the controller
         if not self.check_jnt_names_consistency() and self._check_jnt_names:
             msg = "" + \
                 "URDF: [" +  ", ".join(self.joint_names_urdf) + "]\n" \
                 "RHC: [" +  ", ".join(self.joint_names_rhc) + "]\n"
             self.node.get_logger().error(msg)
-            return 
+            return
 
         # Launch RViz in a separate process
         rviz_process = self.launch_rviz()
-        
+
         # Start a robot_state_publisher for each RHC node and for the robot state
         total_nodes = self.n_rhc_selected_nodes + 1  # Including robot state
         for i in range(total_nodes):
             node_ns = self.nodes_ns[self.rhc_indeces[i]] if i < self.n_rhc_selected_nodes else self.state_ns
-            self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher, 
+            self.rsp_processes.append(ctx.Process(target=start_robot_state_publisher,
                             name="MPCViz_robot_state_publisher_n" + str(i),
                             args=(robot_description, node_ns, i)))
             self.rsp_processes[i].start()
@@ -732,17 +799,17 @@ class MPCViz():
             ns = self.nodes_ns[self.rhc_indeces[i]]
             self.publishers[ns] = self.node.create_publisher(JointState, f'/{ns}/joint_states', 10)
         # Publisher for robot state
-        self.publishers[self.state_ns] = self.node.create_publisher(JointState, 
+        self.publishers[self.state_ns] = self.node.create_publisher(JointState,
                                             '/{}/joint_states'.format(self.state_ns), 10)
         # publishers for pose and twist rhc refs
-        self.publishers[self.rhc_pose_ref_ns] = self.node.create_publisher(PoseStamped, 
+        self.publishers[self.rhc_pose_ref_ns] = self.node.create_publisher(PoseStamped,
                                             '/{}/pose_ref'.format(self.rhc_pose_ref_ns), 10)
-        self.publishers[self.rhc_twist_ref_ns] = self.node.create_publisher(TwistStamped, 
+        self.publishers[self.rhc_twist_ref_ns] = self.node.create_publisher(TwistStamped,
                                             '/{}/twist_ref'.format(self.rhc_twist_ref_ns), 10)
         # publishers for pose and twist high-level refs
-        self.publishers[self.hl_pose_ref_ns] = self.node.create_publisher(PoseStamped, 
+        self.publishers[self.hl_pose_ref_ns] = self.node.create_publisher(PoseStamped,
                                             '/{}/pose_ref'.format(self.hl_pose_ref_ns), 10)
-        self.publishers[self.hl_twist_ref_ns] = self.node.create_publisher(TwistStamped, 
+        self.publishers[self.hl_twist_ref_ns] = self.node.create_publisher(TwistStamped,
                                             '/{}/twist_ref'.format(self.hl_twist_ref_ns), 10)
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
@@ -756,7 +823,7 @@ class MPCViz():
         while rclpy.ok():
             # keep mpc_vizalive
             rclpy.spin_once(self.node)
-            PerfSleep.thread_sleep(int((self.sleep_dt) * 1e+9)) 
+            time.sleep(self.sleep_dt)
 
         rviz_process.terminate()
 
@@ -774,10 +841,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    mpc_viz= MPCViz(urdf_file_path=args.urdf_file_path, 
-           rviz_config_path=args.rviz_config, 
-           namespace="", 
+    mpc_viz= MPCViz(urdf_file_path=args.urdf_file_path,
+           rviz_config_path=args.rviz_config,
+           namespace="",
            basename="MPCViz_test")
-    
+
     mpc_viz.run()
     rclpy.shutdown()

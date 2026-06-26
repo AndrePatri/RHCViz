@@ -6,6 +6,9 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import WrenchStamped
 import tf2_ros
 
 import yaml
@@ -82,6 +85,11 @@ class MPCViz():
 
         self.rhc_state_subscriber = None
         self.robot_state_subscriber = None
+        self.root_wrench_subscriber = None
+        self.root_wrench_point_subscriber = None
+        self.root_wrench_marker_publisher = None
+        self._last_root_wrench = None
+        self._last_root_wrench_point = None
         self.rhc_refs_subscriber = None
         self.hl_refs_subscriber = None
         self.robot_jnt_names_subscriber = None
@@ -105,9 +113,10 @@ class MPCViz():
                                                 namespace=self.namespace)
 
         self.urdf_file_path = urdf_file_path
-        self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
         self.robot_description = self.read_urdf_file(urdf_file_path)
-        self.joint_names_urdf, _ = self.get_joint_info(URDF.from_xml_string(self.robot_description))
+        self.urdf_robot = URDF.from_xml_string(self.robot_description)
+        self.joint_names_urdf, _ = self.get_joint_info(self.urdf_robot)
+        self.robot_weight = self.get_robot_weight(self.urdf_robot)
 
         self.joint_names_rhc = []
         self.joint_names_robot = []
@@ -128,9 +137,16 @@ class MPCViz():
                                                     namespace=self.namespace)
         self.heightmap_topicname = self.names.heightmap_topicname(basename=self.basename,
                                                     namespace=self.namespace)
+        self.root_wrench_topicname = self.names.root_wrench_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
+        self.root_wrench_point_topicname = self.names.root_wrench_point_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
+        self.root_wrench_marker_topicname = self.names.root_wrench_marker_topicname(basename=self.basename,
+                                                    namespace=self.namespace)
 
         self.handshake_topicname = self.names.handshake_topicname(basename=self.basename,
                                                     namespace=self.namespace)
+        self.rviz_config_path = rviz_config_path or self.rviz_config_path_default()
 
         self.rsp_processes = []
         self.heightmap_subscriber = None
@@ -379,6 +395,22 @@ class MPCViz():
 
         config['Visualization Manager']['Displays'].append(hl_ref_pose_config)
 
+        root_wrench_disp = {
+            'Class': 'rviz_default_plugins/Marker',
+            'Name': 'RootWrench',
+            'Enabled': True,
+            'Queue Size': 1,
+            'Topic': {
+                'Depth': 5,
+                'Durability Policy': 'Volatile',
+                'History Policy': 'Keep Last',
+                'Reliability Policy': 'Reliable',
+                'Value': self.root_wrench_marker_topicname
+            },
+            'Unreliable': False
+        }
+        config['Visualization Manager']['Displays'].append(root_wrench_disp)
+
         if self.show_heightmap:
             topic_val = self.heightmap_topicname
             if not topic_val:
@@ -437,6 +469,16 @@ class MPCViz():
             yaml.safe_dump(config, file)
 
         return temp_config_path
+
+    def get_robot_weight(self, urdf_robot):
+        mass = 0.0
+        for link in urdf_robot.links:
+            inertial = getattr(link, "inertial", None)
+            link_mass = getattr(inertial, "mass", None) if inertial is not None else None
+            value = getattr(link_mass, "value", link_mass)
+            if value is not None:
+                mass += float(value)
+        return mass * 9.81 if mass > 0.0 else None
 
     def get_joint_info(self, urdf_robot):
         """
@@ -498,6 +540,15 @@ class MPCViz():
         """
         self.robot_state_subscriber = self.node.create_subscription(
             Float64MultiArray, topic_name, self.robot_state_callback, 10)
+
+    def initialize_root_wrench_subscribers(self,
+                        wrench_topic_name: str,
+                        point_topic_name: str):
+        # Both messages are expected in world frame. MPCViz only visualizes the data.
+        self.root_wrench_subscriber = self.node.create_subscription(
+            WrenchStamped, wrench_topic_name, self.root_wrench_callback, 10)
+        self.root_wrench_point_subscriber = self.node.create_subscription(
+            PointStamped, point_topic_name, self.root_wrench_point_callback, 10)
 
     def robot_jnt_names_callback(self, msg):
 
@@ -584,6 +635,30 @@ class MPCViz():
         self.publish_refs_to_rviz(pose=pose, twist=twist,
                 pose_id=self.hl_pose_ref_ns, twist_id=self.hl_twist_ref_ns,
                 position_is_world=True)
+
+    def root_wrench_point_callback(self, msg):
+        if msg.header.frame_id != "world":
+            return
+        self._last_root_wrench_point = np.array([msg.point.x, msg.point.y, msg.point.z], dtype=float)
+        self._publish_root_wrench_if_ready()
+
+    def root_wrench_callback(self, msg):
+        if msg.header.frame_id != "world":
+            return
+        self._last_root_wrench = (
+            np.array([msg.wrench.force.x, msg.wrench.force.y, msg.wrench.force.z], dtype=float),
+            np.array([msg.wrench.torque.x, msg.wrench.torque.y, msg.wrench.torque.z], dtype=float),
+        )
+        self._publish_root_wrench_if_ready()
+
+    def _publish_root_wrench_if_ready(self):
+        if self._last_root_wrench is None or self._last_root_wrench_point is None:
+            return
+        force, torque = self._last_root_wrench
+        point = self._last_root_wrench_point
+        if np.isnan(point).any() or np.isnan(force).any() or np.isnan(torque).any():
+            return
+        self.publish_root_wrench_to_rviz(point=point, force=force, torque=torque)
 
     def robot_state_callback(self, msg):
         """
@@ -692,6 +767,59 @@ class MPCViz():
 
         self.publishers[pose_id].publish(pose_msg)
         self.publishers[twist_id].publish(twist_msg)
+
+    def _make_root_vector_marker(self, point, vec, marker_id, ns, color, scale, min_norm=1e-6):
+        marker = Marker()
+        marker.header.stamp = self.node.get_clock().now().to_msg()
+        marker.header.frame_id = 'world'
+        marker.ns = ns
+        marker.id = marker_id
+        marker.type = Marker.ARROW
+
+        vec_norm = float(np.linalg.norm(vec))
+        if vec_norm < min_norm:
+            marker.action = Marker.DELETE
+            return marker
+
+        marker.action = Marker.ADD
+        direction = vec / vec_norm
+        length = vec_norm * scale
+        start = Point()
+        start.x, start.y, start.z = [float(v) for v in point]
+        end = Point()
+        end.x = float(point[0] + length * direction[0])
+        end.y = float(point[1] + length * direction[1])
+        end.z = float(point[2] + length * direction[2])
+        marker.points = [start, end]
+        marker.scale.x = 0.025
+        marker.scale.y = 0.07
+        marker.scale.z = 0.12
+        marker.color.r, marker.color.g, marker.color.b, marker.color.a = color
+        return marker
+
+    def publish_root_wrench_to_rviz(self, point, force, torque):
+        weight = self.robot_weight if self.robot_weight is not None and self.robot_weight > 1e-9 else 1000.0
+        length_per_body_weight = 5.0
+        characteristic_length = 0.5
+        force_scale = length_per_body_weight / weight
+        torque_scale = length_per_body_weight / (weight * characteristic_length)
+
+        force_marker = self._make_root_vector_marker(
+            point=point,
+            vec=force,
+            marker_id=0,
+            ns='root_wrench_force',
+            color=(1.0, 0.22, 0.05, 0.95),
+            scale=force_scale)
+        torque_marker = self._make_root_vector_marker(
+            point=point,
+            vec=torque,
+            marker_id=1,
+            ns='root_wrench_torque',
+            color=(0.65, 0.25, 1.0, 0.95),
+            scale=torque_scale)
+        self.root_wrench_marker_publisher.publish(force_marker)
+        self.root_wrench_marker_publisher.publish(torque_marker)
 
     def publish_robot_state_to_rviz(self, base_pose, jointpositions):
         """
@@ -811,11 +939,18 @@ class MPCViz():
                                             '/{}/pose_ref'.format(self.hl_pose_ref_ns), 10)
         self.publishers[self.hl_twist_ref_ns] = self.node.create_publisher(TwistStamped,
                                             '/{}/twist_ref'.format(self.hl_twist_ref_ns), 10)
+        self.root_wrench_marker_publisher = self.node.create_publisher(Marker,
+                                            self.root_wrench_marker_topicname,
+                                            10)
+
         # subscribers to rhc states and robot state
         self.initialize_rhc_subscriber(topic_name=self.rhc_state_topicname)
         self.initalize_rhc_refs_subscriber(topic_name=self.rhc_refs_topicname)
         self.initalize_hl_refs_subscriber(topic_name=self.hl_refs_topicname)
         self.initialize_robot_state_subscriber(topic_name=self.robot_state_topicname)
+        self.initialize_root_wrench_subscribers(
+            wrench_topic_name=self.root_wrench_topicname,
+            point_topic_name=self.root_wrench_point_topicname)
 
         # give some time for the robot_state_publishers to start
         rclpy.spin_once(self.node, timeout_sec=3)

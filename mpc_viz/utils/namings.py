@@ -24,6 +24,9 @@ class NamingConventions:
 
         self.RHC_REFS_NAME = "rhc_refs"
         self.RHC_CONTACTS_NAME = "rhc_contacts"
+        self.ROOT_WRENCH_NAME = "root_wrench"
+        self.ROOT_WRENCH_POINT_NAME = "root_wrench_point"
+        self.ROOT_WRENCH_MARKER_NAME = "root_wrench_marker"
         self.RHC_POSE_REF_NS_BASE = "rhc_pose_ref_rviz"
         self.RHC_TWIST_REF_NS_BASE = "rhc_twist_ref_rviz"
 
@@ -100,6 +103,39 @@ class NamingConventions:
 
         return topic_name
     
+    def root_wrench_topicname(self,
+                    basename: str,
+                    namespace: str):
+
+        global_ns = self.global_ns(basename = basename,
+                                namespace=namespace)
+
+        topic_name = f"/{global_ns}_{self.ROOT_WRENCH_NAME}"
+
+        return topic_name
+
+    def root_wrench_point_topicname(self,
+                    basename: str,
+                    namespace: str):
+
+        global_ns = self.global_ns(basename = basename,
+                                namespace=namespace)
+
+        topic_name = f"/{global_ns}_{self.ROOT_WRENCH_POINT_NAME}"
+
+        return topic_name
+
+    def root_wrench_marker_topicname(self,
+                    basename: str,
+                    namespace: str):
+
+        global_ns = self.global_ns(basename = basename,
+                                namespace=namespace)
+
+        topic_name = f"/{global_ns}_{self.ROOT_WRENCH_MARKER_NAME}"
+
+        return topic_name
+
     def hl_refs_topicname(self, 
                     basename: str, 
                     namespace: str):
